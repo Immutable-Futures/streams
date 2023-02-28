@@ -82,7 +82,7 @@ impl<'a> Wrap<'a> {
     }
 }
 
-#[async_trait(?Send)]
+#[async_trait]
 impl<'a> ContentSizeof<Wrap<'a>> for sizeof::Context {
     async fn sizeof(&mut self, subscription: &Wrap<'a>) -> Result<&mut Self> {
         self.x25519(subscription.author_ke_pk, NBytes::new(subscription.unsubscribe_key))?
@@ -93,7 +93,7 @@ impl<'a> ContentSizeof<Wrap<'a>> for sizeof::Context {
     }
 }
 
-#[async_trait(?Send)]
+#[async_trait]
 impl<'a, OS> ContentWrap<Wrap<'a>> for wrap::Context<OS>
 where
     OS: io::OStream,
@@ -146,10 +146,10 @@ impl<'a> Unwrap<'a> {
     }
 }
 
-#[async_trait(?Send)]
+#[async_trait]
 impl<'a, IS> ContentUnwrap<Unwrap<'a>> for unwrap::Context<IS>
 where
-    IS: io::IStream,
+    IS: io::IStream + Send,
 {
     async fn unwrap(&mut self, subscription: &mut Unwrap<'a>) -> Result<&mut Self> {
         self.join(subscription.initial_state)?

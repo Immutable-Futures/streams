@@ -117,13 +117,13 @@ impl<'a, 'b, Subscribers, Psks> Wrap<'a, 'b, Subscribers, Psks> {
     }
 }
 
-#[async_trait(?Send)]
+#[async_trait]
 impl<'a, 'b, Subscribers, Psks> message::ContentSizeof<Wrap<'a, 'b, Subscribers, Psks>> for sizeof::Context
 where
-    Subscribers: IntoIterator<Item = Permissioned<&'b Identifier>> + Clone,
-    Subscribers::IntoIter: ExactSizeIterator,
-    Psks: IntoIterator<Item = &'a (PskId, &'a Psk)> + Clone,
-    Psks::IntoIter: ExactSizeIterator,
+    Subscribers: IntoIterator<Item = Permissioned<&'b Identifier>> + Clone + Send + Sync,
+    Subscribers::IntoIter: ExactSizeIterator + Send,
+    Psks: IntoIterator<Item = &'a (PskId, &'a Psk)> + Clone + Send + Sync,
+    Psks::IntoIter: ExactSizeIterator + Send,
 {
     async fn sizeof(&mut self, keyload: &Wrap<'a, 'b, Subscribers, Psks>) -> Result<&mut sizeof::Context> {
         let subscribers = keyload.subscribers.clone().into_iter();
@@ -155,13 +155,13 @@ where
     }
 }
 
-#[async_trait(?Send)]
+#[async_trait]
 impl<'a, 'b, OS, Subscribers, Psks> message::ContentWrap<Wrap<'a, 'b, Subscribers, Psks>> for wrap::Context<OS>
 where
-    Subscribers: IntoIterator<Item = Permissioned<&'b Identifier>> + Clone,
-    Subscribers::IntoIter: ExactSizeIterator,
-    Psks: IntoIterator<Item = &'a (PskId, &'a Psk)> + Clone,
-    Psks::IntoIter: ExactSizeIterator,
+    Subscribers: IntoIterator<Item = Permissioned<&'b Identifier>> + Clone + Send,
+    Subscribers::IntoIter: ExactSizeIterator + Send,
+    Psks: IntoIterator<Item = &'a (PskId, &'a Psk)> + Clone + Send,
+    Psks::IntoIter: ExactSizeIterator + Send,
     OS: io::OStream,
 {
     async fn wrap(&mut self, keyload: &mut Wrap<'a, 'b, Subscribers, Psks>) -> Result<&mut Self> {
@@ -241,7 +241,7 @@ impl<'a> Unwrap<'a> {
     }
 }
 
-#[async_trait(?Send)]
+#[async_trait]
 impl<'a, IS> message::ContentUnwrap<Unwrap<'a>> for unwrap::Context<IS>
 where
     IS: io::IStream,

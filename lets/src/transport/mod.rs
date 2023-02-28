@@ -1,6 +1,5 @@
 // Rust
-use alloc::{boxed::Box, rc::Rc, vec::Vec};
-use core::cell::RefCell;
+use alloc::{boxed::Box, vec::Vec};
 
 // 3rd-party
 use async_trait::async_trait;
@@ -18,7 +17,7 @@ use crate::{
 /// Network transport abstraction.
 /// Parametrized by the type of message addresss.
 /// Message address is used to identify/locate a message (eg. like URL for HTTP).
-#[async_trait(?Send)]
+#[async_trait]
 pub trait Transport<'a> {
     type Msg;
     type SendResponse;
@@ -46,26 +45,8 @@ pub trait Transport<'a> {
     }
 }
 
-#[async_trait(?Send)]
-impl<'a, Tsp: Transport<'a>> Transport<'a> for Rc<RefCell<Tsp>> {
-    type Msg = Tsp::Msg;
-    type SendResponse = Tsp::SendResponse;
-
-    /// Send a message.
-    async fn send_message(&mut self, address: Address, msg: Tsp::Msg) -> Result<Tsp::SendResponse>
-    where
-        Self::Msg: 'async_trait,
-    {
-        self.borrow_mut().send_message(address, msg).await
-    }
-
-    /// Receive messages with default options.
-    async fn recv_messages(&mut self, address: Address) -> Result<Vec<Tsp::Msg>> {
-        self.borrow_mut().recv_messages(address).await
-    }
-}
-
 /// Localised mapping for tests and simulations
+#[cfg(feature = "bucket")]
 pub mod bucket;
 /// `iota.rs` based tangle client
 #[cfg(any(feature = "tangle-client", feature = "tangle-client-wasm"))]

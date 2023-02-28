@@ -18,6 +18,7 @@ extern crate alloc;
 extern crate std;
 
 pub mod error;
+#[allow(unused_imports)]
 use error::Error;
 
 /// Core utility tools (spongos/prp/prng)

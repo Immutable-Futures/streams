@@ -125,7 +125,7 @@ use crate::api::{
 /// suggested that, when suitable, use the methods in [`futures::TryStreamExt`] to make the
 /// error-handling much more ergonomic (with the use of `?`) and shortcircuit the
 /// [`futures::Stream`] on the first error.
-pub struct Messages<'a, T>(PinBoxFut<'a, (MessagesState<'a, T>, Option<Result<Message>>)>);
+pub struct Messages<'a, T: Send>(PinBoxFut<'a, (MessagesState<'a, T>, Option<Result<Message>>)>);
 
 type PinBoxFut<'a, T> = Pin<Box<dyn Future<Output = T> + 'a>>;
 
@@ -137,7 +137,7 @@ struct MessagesState<'a, T> {
     successful_round: bool,
 }
 
-impl<'a, T> MessagesState<'a, T> {
+impl<'a, T: Send> MessagesState<'a, T> {
     fn new(user: &'a mut User<T>) -> Self {
         Self {
             user,
@@ -154,7 +154,7 @@ impl<'a, T> MessagesState<'a, T> {
     #[async_recursion(?Send)]
     async fn next(&mut self) -> Option<Result<Message>>
     where
-        T: for<'b> Transport<'b, Msg = TransportMessage>,
+        T: for<'b> Transport<'b, Msg = TransportMessage> + Send,
     {
         if let Some((relative_address, binary_msg)) = self.stage.pop_front() {
             // Drain stage if not empty...
@@ -245,7 +245,7 @@ impl<'a, T> MessagesState<'a, T> {
 
 impl<'a, T> Messages<'a, T>
 where
-    T: for<'b> Transport<'b, Msg = TransportMessage>,
+    T: for<'b> Transport<'b, Msg = TransportMessage> + Send,
 {
     pub(crate) fn new(user: &'a mut User<T>) -> Self {
         let mut state = MessagesState::new(user);
@@ -329,7 +329,7 @@ where
 
 impl<'a, T> From<&'a mut User<T>> for Messages<'a, T>
 where
-    T: for<'b> Transport<'b, Msg = TransportMessage>,
+    T: for<'b> Transport<'b, Msg = TransportMessage> + Send,
 {
     fn from(user: &'a mut User<T>) -> Self {
         Self::new(user)
@@ -338,7 +338,7 @@ where
 
 impl<'a, T> Stream for Messages<'a, T>
 where
-    T: for<'b> Transport<'b, Msg = TransportMessage>,
+    T: for<'b> Transport<'b, Msg = TransportMessage> + Send,
 {
     type Item = Result<Message>;
 

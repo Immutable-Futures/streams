@@ -1,5 +1,6 @@
 // Rust
 use alloc::{boxed::Box, vec::Vec};
+use alloc::string::ToString;
 use core::{
     convert::{TryFrom, TryInto},
     marker::PhantomData,
@@ -67,11 +68,23 @@ impl<Message, SendResponse> Client<Message, SendResponse> {
     }
 }
 
-#[async_trait(?Send)]
+impl<Message, SendResponse> Clone for Client<Message, SendResponse> {
+    fn clone(&self) -> Self {
+        async fn copy_client<M, S>(client: &iota_client::Client) -> Client<M, S> {
+            let url = client.get_node().await.unwrap().url.to_string();
+            Client::for_node(&url).await.unwrap()
+        }
+
+        // If you are cloning an active transport there should not be a failure to fetch node details
+        futures::executor::block_on(copy_client(self.client()))
+    }
+}
+
+#[async_trait]
 impl<Message, SendResponse> Transport<'_> for Client<Message, SendResponse>
 where
-    Message: Into<Vec<u8>> + TryFrom<IotaMessage, Error = crate::error::Error>,
-    SendResponse: TryFrom<IotaMessage, Error = crate::error::Error>,
+    Message: Into<Vec<u8>> + TryFrom<IotaMessage, Error = crate::error::Error> + Send + Sync,
+    SendResponse: TryFrom<IotaMessage, Error = crate::error::Error> + Send + Sync,
 {
     type Msg = Message;
     type SendResponse = SendResponse;

@@ -1,5 +1,6 @@
 // Rust
 use alloc::{boxed::Box, collections::BTreeMap, vec::Vec};
+use alloc::sync::Arc;
 
 // 3rd-party
 use async_trait::async_trait;
@@ -17,12 +18,12 @@ use crate::{
 };
 
 /// [`BTreeMap`] wrapper client for testing purposes
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug)]
 pub struct Client<Msg = TransportMessage> {
     /// Mapping of stored [Addresses](`Address`) and `Messages`
     // Use BTreeMap instead of HashMap to make BucketTransport nostd without pulling hashbrown
     // (this transport is for hacking purposes only, performance is no concern)
-    bucket: BTreeMap<Address, Vec<Msg>>,
+    bucket: Arc<spin::Mutex<BTreeMap<Address, Vec<Msg>>>>,
 }
 
 impl<Msg> Client<Msg> {
@@ -36,15 +37,15 @@ impl<Msg> Default for Client<Msg> {
     // Implement default manually because derive puts Default bounds in type parameters
     fn default() -> Self {
         Self {
-            bucket: BTreeMap::default(),
+            bucket: Arc::new(spin::Mutex::new(BTreeMap::default())),
         }
     }
 }
 
-#[async_trait(?Send)]
+#[async_trait]
 impl<Msg> Transport<'_> for Client<Msg>
 where
-    Msg: Clone,
+    Msg: Clone + Send + Sync,
 {
     type Msg = Msg;
     type SendResponse = Msg;
@@ -61,7 +62,7 @@ where
     where
         Self::Msg: 'async_trait,
     {
-        self.bucket.entry(addr).or_default().push(msg.clone());
+        self.bucket.lock().entry(addr).or_default().push(msg.clone());
         Ok(msg)
     }
 
@@ -75,6 +76,7 @@ where
     /// A vector of messages.
     async fn recv_messages(&mut self, address: Address) -> Result<Vec<Msg>> {
         self.bucket
+            .lock()
             .get(&address)
             .cloned()
             .ok_or(Error::AddressError("No message found", address))

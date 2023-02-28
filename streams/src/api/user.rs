@@ -329,7 +329,10 @@ impl<T> User<T> {
     /// # Arguments
     /// * `address`: The [`Address`] of the message to process
     /// * `msg`: The raw [`TransportMessage`]
-    pub(crate) async fn handle_message(&mut self, address: Address, msg: TransportMessage) -> Result<Message> {
+    pub(crate) async fn handle_message(&mut self, address: Address, msg: TransportMessage) -> Result<Message>
+    where
+        T: Send
+    {
         let preparsed = msg
             .parse_header()
             .await
@@ -791,7 +794,7 @@ impl<T> User<T> {
 
 impl<T> User<T>
 where
-    T: for<'a> Transport<'a, Msg = TransportMessage>,
+    T: for<'a> Transport<'a, Msg = TransportMessage> + Send,
 {
     /// Receive a raw message packet using the internal [`Transport`] client
     ///
@@ -839,7 +842,7 @@ where
 
 impl<T, TSR> User<T>
 where
-    T: for<'a> Transport<'a, Msg = TransportMessage, SendResponse = TSR>,
+    T: for<'a> Transport<'a, Msg = TransportMessage, SendResponse = TSR> + Send,
 {
     /// Create and send a stream Announcement message, anchoring the stream for others to attach to.
     /// Errors if the [`User`] is already attached to a stream, or if the message already exists in
@@ -1517,7 +1520,7 @@ where
     }
 }
 
-#[async_trait(?Send)]
+#[async_trait]
 impl ContentSizeof<State> for sizeof::Context {
     async fn sizeof(&mut self, user_state: &State) -> SpongosResult<&mut Self> {
         self.mask(Maybe::new(user_state.user_id.as_ref()))?
@@ -1588,7 +1591,7 @@ impl ContentSizeof<State> for sizeof::Context {
     }
 }
 
-#[async_trait(?Send)]
+#[async_trait]
 impl<'a> ContentWrap<State> for wrap::Context<&'a mut [u8]> {
     async fn wrap(&mut self, user_state: &mut State) -> SpongosResult<&mut Self> {
         self.mask(Maybe::new(user_state.user_id.as_ref()))?
@@ -1659,7 +1662,7 @@ impl<'a> ContentWrap<State> for wrap::Context<&'a mut [u8]> {
     }
 }
 
-#[async_trait(?Send)]
+#[async_trait]
 impl<'a> ContentUnwrap<State> for unwrap::Context<&'a [u8]> {
     async fn unwrap(&mut self, user_state: &mut State) -> SpongosResult<&mut Self> {
         self.mask(Maybe::new(&mut user_state.user_id))?

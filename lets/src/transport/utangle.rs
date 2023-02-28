@@ -133,11 +133,11 @@ impl<Message, SendResponse> Client<Message, SendResponse> {
     }
 }
 
-#[async_trait(?Send)]
+#[async_trait]
 impl<Message, SendResponse> Transport<'_> for Client<Message, SendResponse>
 where
-    Message: AsRef<[u8]> + TryFrom<TangleMessage, Error = crate::error::Error>,
-    SendResponse: DeserializeOwned,
+    Message: AsRef<[u8]> + TryFrom<TangleMessage, Error = crate::error::Error> + Send + Sync,
+    SendResponse: DeserializeOwned + Send + Sync,
 {
     type Msg = Message;
     type SendResponse = SendResponse;
@@ -149,7 +149,7 @@ where
     /// * `msg`: Message - The message to send.
     async fn send_message(&mut self, address: Address, msg: Message) -> Result<SendResponse>
     where
-        Message: 'async_trait,
+        Message: 'async_trait + Send,
     {
         let network_info = self.get_network_info().await?;
         let tips = self.get_tips().await?;
@@ -260,7 +260,7 @@ struct IndexResponse {
     message_ids: Vec<String>,
 }
 
-#[derive(Deserialize)]
+#[derive(Clone, Deserialize)]
 pub struct Ignored {}
 
 #[derive(Deserialize)]

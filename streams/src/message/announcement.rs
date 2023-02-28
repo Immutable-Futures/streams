@@ -58,7 +58,7 @@ impl<'a> Wrap<'a> {
     }
 }
 
-#[async_trait(?Send)]
+#[async_trait]
 impl<'a> ContentSizeof<Wrap<'a>> for sizeof::Context {
     async fn sizeof(&mut self, announcement: &Wrap<'a>) -> Result<&mut Self> {
         self.mask(announcement.user_id.identifier())?
@@ -70,7 +70,7 @@ impl<'a> ContentSizeof<Wrap<'a>> for sizeof::Context {
     }
 }
 
-#[async_trait(?Send)]
+#[async_trait]
 impl<'a, OS> ContentWrap<Wrap<'a>> for wrap::Context<OS>
 where
     OS: io::OStream,
@@ -117,11 +117,11 @@ impl Unwrap {
     }
 }
 
-#[async_trait(?Send)]
+#[async_trait]
 impl<IS, F> ContentUnwrap<Unwrap> for unwrap::Context<IS, F>
 where
-    F: PRP,
-    IS: io::IStream,
+    F: PRP + Send,
+    IS: io::IStream + Send,
 {
     async fn unwrap(&mut self, announcement: &mut Unwrap) -> Result<&mut Self> {
         self.mask(&mut announcement.author_id)?

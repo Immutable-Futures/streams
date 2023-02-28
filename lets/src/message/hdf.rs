@@ -160,7 +160,7 @@ impl HDF {
     }
 }
 
-#[async_trait(?Send)]
+#[async_trait]
 impl ContentSizeof<HDF> for sizeof::Context {
     async fn sizeof(&mut self, hdf: &HDF) -> SpongosResult<&mut Self> {
         let message_type_and_payload_length = NBytes::<[u8; 2]>::default();
@@ -182,7 +182,7 @@ impl ContentSizeof<HDF> for sizeof::Context {
     }
 }
 
-#[async_trait(?Send)]
+#[async_trait]
 impl<F, OS> ContentWrap<HDF> for wrap::Context<OS, F>
 where
     F: PRP,
@@ -221,11 +221,11 @@ where
     }
 }
 
-#[async_trait(?Send)]
+#[async_trait]
 impl<F, IS> ContentUnwrap<HDF> for unwrap::Context<IS, F>
 where
-    F: PRP,
-    IS: io::IStream,
+    F: PRP + Send,
+    IS: io::IStream + Send,
 {
     async fn unwrap(&mut self, mut hdf: &mut HDF) -> SpongosResult<&mut Self> {
         let mut encoding = Uint8::default();

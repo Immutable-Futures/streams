@@ -108,7 +108,7 @@ impl<'a, P, Trans> MessageBuilder<'a, P, Trans> {
     pub async fn send<TSR>(self) -> Result<SendResponse<TSR>>
     where
         P: AsRef<[u8]>,
-        Trans: for<'b> Transport<'b, Msg = TransportMessage, SendResponse = TSR>,
+        Trans: for<'b> Transport<'b, Msg = TransportMessage, SendResponse = TSR> + Send,
     {
         if self.payload.as_ref().is_empty() {
             return Err(Error::PayloadEmpty);

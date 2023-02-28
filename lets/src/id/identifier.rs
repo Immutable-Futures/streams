@@ -208,11 +208,11 @@ where
     }
 }
 
-#[async_trait(?Send)]
+#[async_trait]
 impl<IS, F> ContentVerify<Identifier> for unwrap::Context<IS, F>
 where
-    F: PRP,
-    IS: io::IStream,
+    F: PRP + Send,
+    IS: io::IStream + Send,
 {
     /// Verifies the signature of the message based on the type of [`Identifier`] of the signing
     /// user. If the sender [`Identifier`] is of type [`Identifier::Ed25519`], then the public
@@ -284,7 +284,7 @@ where
 }
 
 // TODO: Find a better way to represent this logic without the need for an additional trait
-#[async_trait(?Send)]
+#[async_trait]
 impl ContentEncryptSizeOf<Identifier> for sizeof::Context {
     async fn encrypt_sizeof(&mut self, recipient: &Identifier, key: &[u8]) -> SpongosResult<&mut Self> {
         // TODO: Replace with separate logic for EdPubKey and DID instances (pending Identity xkey
@@ -317,7 +317,7 @@ impl ContentEncryptSizeOf<Identifier> for sizeof::Context {
     }
 }
 
-#[async_trait(?Send)]
+#[async_trait]
 impl<OS, F> ContentEncrypt<Identifier> for wrap::Context<OS, F>
 where
     F: PRP,

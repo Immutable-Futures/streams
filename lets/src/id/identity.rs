@@ -198,7 +198,7 @@ where
     }
 }
 
-#[async_trait(?Send)]
+#[async_trait]
 impl ContentSignSizeof<Identity> for sizeof::Context {
     async fn sign_sizeof(&mut self, signer: &Identity) -> SpongosResult<&mut Self> {
         match &signer.identitykind {
@@ -229,7 +229,7 @@ impl ContentSignSizeof<Identity> for sizeof::Context {
     }
 }
 
-#[async_trait(?Send)]
+#[async_trait]
 impl<OS, F> ContentSign<IdentityKind> for wrap::Context<OS, F>
 where
     F: PRP,
@@ -298,11 +298,11 @@ where
     }
 }
 
-#[async_trait(?Send)]
+#[async_trait]
 impl<IS, F> ContentDecrypt<Identity> for unwrap::Context<IS, F>
 where
-    F: PRP,
-    IS: io::IStream,
+    F: PRP + Send,
+    IS: io::IStream + Send,
 {
     async fn decrypt(&mut self, recipient: &Identity, key: &mut [u8]) -> SpongosResult<&mut Self> {
         // TODO: Replace with separate logic for EdPubKey and DID instances (pending Identity xkey

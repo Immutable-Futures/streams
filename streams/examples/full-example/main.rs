@@ -1,5 +1,5 @@
 // Rust
-use std::{cell::RefCell, env, rc::Rc};
+use std::env;
 
 // 3rd-party
 use rand::Rng;
@@ -24,9 +24,9 @@ mod scenarios;
 // struct Ignored {}
 
 // impl TryFrom<Message
-trait GenericTransport<SR>: for<'a> Transport<'a, Msg = TransportMessage, SendResponse = SR> + Clone {}
+trait GenericTransport<SR>: for<'a> Transport<'a, Msg = TransportMessage, SendResponse = SR> + Clone + Send + Sync {}
 
-impl<T, SR> GenericTransport<SR> for T where T: for<'a> Transport<'a, Msg = TransportMessage, SendResponse = SR> + Clone {}
+impl<T, SR> GenericTransport<SR> for T where T: for<'a> Transport<'a, Msg = TransportMessage, SendResponse = SR> + Clone + Send + Sync {}
 
 #[cfg(feature = "did")]
 async fn run_did_scenario<SR, T: GenericTransport<SR>>(transport: T) -> Result<()> {
@@ -79,7 +79,6 @@ async fn main_pure() -> Result<()> {
     let transport = bucket::Client::new();
     // BucketTransport is an in-memory storage that needs to be shared between all the users,
     // hence the Rc<RefCell<BucketTransport>>
-    let transport = Rc::new(RefCell::new(transport));
 
     run_basic_scenario(transport.clone(), "PURESEEDA").await?;
     run_lean_test(transport.clone(), "PURESEEDB").await?;
@@ -107,10 +106,9 @@ async fn main_tangle_client() -> Result<()> {
     );
     println!("\n");
 
-    let transport: Rc<RefCell<tangle::Client>> =
-        Rc::new(RefCell::new(tangle::Client::for_node(&node_url).await.unwrap_or_else(
+    let transport: tangle::Client = tangle::Client::for_node(&node_url).await.unwrap_or_else(
             |e| panic!("error connecting Tangle client to '{}': {}", node_url, e),
-        )));
+    );
 
     run_basic_scenario(transport.clone(), &new_seed()).await?;
     #[cfg(feature = "did")]
@@ -149,7 +147,7 @@ async fn main_utangle_client() -> Result<()> {
     );
     println!("\n");
 
-    let transport: Rc<RefCell<utangle::Client>> = Rc::new(RefCell::new(utangle::Client::new(&node_url)));
+    let transport: utangle::Client = utangle::Client::new(&node_url);
 
     run_basic_scenario(transport.clone(), &new_seed()).await?;
     #[cfg(feature = "did")]

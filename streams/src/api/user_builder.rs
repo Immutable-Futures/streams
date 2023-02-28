@@ -72,7 +72,7 @@ impl<T> UserBuilder<T> {
     /// * `transport` - Transport Client to be used by the Streams User
     pub fn with_transport<NewTransport>(self, transport: NewTransport) -> UserBuilder<NewTransport>
     where
-        NewTransport: for<'a> Transport<'a>,
+        NewTransport: for<'a> Transport<'a> + Send,
     {
         UserBuilder {
             transport,
@@ -138,7 +138,7 @@ impl<T> UserBuilder<T> {
     pub fn build<Trans>(self) -> User<Trans>
     where
         T: IntoTransport<Trans>,
-        Trans: for<'a> Transport<'a>,
+        Trans: for<'a> Transport<'a> + Send,
     {
         User::new(self.id, self.psks, self.transport.into(), self.lean)
     }
@@ -194,7 +194,7 @@ impl<T> UserBuilder<T> {
     pub async fn recover<Trans>(self, announcement: Address) -> Result<User<Trans>>
     where
         T: IntoTransport<Trans>,
-        Trans: for<'a> Transport<'a, Msg = TransportMessage>,
+        Trans: for<'a> Transport<'a, Msg = TransportMessage> + Send,
     {
         let mut user = self.build();
         user.receive_message(announcement).await?;

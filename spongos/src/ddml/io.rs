@@ -7,7 +7,7 @@ use crate::error::{
 };
 
 /// Write
-pub trait OStream {
+pub trait OStream: Send {
     /// Try put n bytes into the stream, returning a slice to the buffer.
     fn try_advance(&mut self, bytes: usize) -> Result<&mut [u8]>;
 
@@ -16,7 +16,7 @@ pub trait OStream {
 }
 
 /// Read
-pub trait IStream {
+pub trait IStream: Send {
     /// Ensure there are enough bytes left in stream for advancement
     fn ensure_size(&self, n: usize) -> Result<()>;
 

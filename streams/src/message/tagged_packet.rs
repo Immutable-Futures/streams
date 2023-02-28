@@ -64,7 +64,7 @@ impl<'a> Wrap<'a> {
     }
 }
 
-#[async_trait(?Send)]
+#[async_trait]
 impl<'a> ContentSizeof<Wrap<'a>> for sizeof::Context {
     async fn sizeof(&mut self, tagged_packet: &Wrap<'a>) -> Result<&mut Self> {
         self.absorb(Bytes::new(tagged_packet.public_payload))?
@@ -75,7 +75,7 @@ impl<'a> ContentSizeof<Wrap<'a>> for sizeof::Context {
     }
 }
 
-#[async_trait(?Send)]
+#[async_trait]
 impl<'a, OS> ContentWrap<Wrap<'a>> for wrap::Context<OS>
 where
     OS: io::OStream,
@@ -124,10 +124,10 @@ impl<'a> Unwrap<'a> {
     }
 }
 
-#[async_trait(?Send)]
+#[async_trait]
 impl<'a, IS> ContentUnwrap<Unwrap<'a>> for unwrap::Context<IS>
 where
-    IS: io::IStream,
+    IS: io::IStream + Send,
 {
     async fn unwrap(&mut self, tagged_packet: &mut Unwrap<'a>) -> Result<&mut Self> {
         self.join(tagged_packet.initial_state)?
