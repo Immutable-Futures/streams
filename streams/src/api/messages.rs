@@ -127,7 +127,7 @@ use crate::api::{
 /// [`futures::Stream`] on the first error.
 pub struct Messages<'a, T: Send>(PinBoxFut<'a, (MessagesState<'a, T>, Option<Result<Message>>)>);
 
-type PinBoxFut<'a, T> = Pin<Box<dyn Future<Output = T> + 'a>>;
+type PinBoxFut<'a, T> = Pin<Box<dyn Future<Output = T> + 'a + Send>>;
 
 struct MessagesState<'a, T> {
     user: &'a mut User<T>,
@@ -151,7 +151,7 @@ impl<'a, T: Send> MessagesState<'a, T> {
     /// Fetch the next message of the channel
     ///
     /// See [`Messages`] documentation and examples for more details.
-    #[async_recursion(?Send)]
+    #[async_recursion]
     async fn next(&mut self) -> Option<Result<Message>>
     where
         T: for<'b> Transport<'b, Msg = TransportMessage> + Send,
