@@ -14,7 +14,7 @@ readme = "README.md"
 version = "0.2.0"
 
 [features]
-default = ["tangle-client", "std"]
+default = ["utangle-client", "std"]
 std = ["lets/std", "spongos/std"]
 did = ["lets/did"]
 # Enable re-export of uTangle transport client from LETS
