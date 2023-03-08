@@ -54,3 +54,7 @@ pub mod tangle;
 /// Localised micro tangle client
 #[cfg(feature = "utangle-client")]
 pub mod utangle;
+/// `sqlx` based mysql client
+#[cfg(feature = "mysql-client")]
+pub mod mysql;
+

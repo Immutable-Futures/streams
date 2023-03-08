@@ -115,6 +115,10 @@ pub enum Error {
     #[error("Iota client error for {0}: {1}")]
     IotaClient(&'static str, iota_client::Error),
 
+    #[cfg(feature = "mysql-client")]
+    #[error("MySql client error for {0}: {1}")]
+    MySqlClient(&'static str, sqlx::Error),
+
     #[error("message '{0}' not found in {1}")]
     MessageMissing(Address, &'static str),
 
@@ -154,6 +158,13 @@ impl From<FromHexError> for Error {
         Self::Encoding("string", "hex", Box::new(Self::External(error.into())))
     }
 }
+
+impl From<sqlx::Error> for Error {
+    fn from(error: sqlx::Error) -> Self {
+        Self::MySqlClient("undefined", error)
+    }
+}
+
 
 #[cfg(feature = "utangle-client")]
 impl From<reqwest::Error> for Error {

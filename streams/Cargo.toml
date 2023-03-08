@@ -25,6 +25,8 @@ tangle-client = ["lets/tangle-client"]
 bucket = ["lets/bucket"]
 # Enable re-export of wasm-compatible IOTA-Tangle transport client from LETS (incompatile with `tangle-client` feature due to `iota-client/async` using `tokio`)
 tangle-client-wasm = ["lets/tangle-client-wasm"]
+#Enable MySql Client
+mysql-client = ["lets/mysql-client"]
 
 [dependencies]
 # Local dependencies
