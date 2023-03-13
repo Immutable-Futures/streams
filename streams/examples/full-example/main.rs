@@ -77,8 +77,6 @@ async fn main_pure() -> Result<()> {
     println!("\n");
 
     let transport = bucket::Client::new();
-    // BucketTransport is an in-memory storage that needs to be shared between all the users,
-    // hence the Rc<RefCell<BucketTransport>>
 
     run_basic_scenario(transport.clone(), "PURESEEDA").await?;
     run_lean_test(transport.clone(), "PURESEEDB").await?;

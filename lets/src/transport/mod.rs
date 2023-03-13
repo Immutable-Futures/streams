@@ -57,4 +57,3 @@ pub mod utangle;
 /// `sqlx` based mysql client
 #[cfg(feature = "mysql-client")]
 pub mod mysql;
-

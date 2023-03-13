@@ -119,6 +119,10 @@ pub enum Error {
     #[error("MySql client error for {0}: {1}")]
     MySqlClient(&'static str, sqlx::Error),
 
+    #[cfg(feature = "mysql-client")]
+    #[error("MySql client failed to insert message into db")]
+    MySqlNotInserted,
+
     #[error("message '{0}' not found in {1}")]
     MessageMissing(Address, &'static str),
 
@@ -159,6 +163,7 @@ impl From<FromHexError> for Error {
     }
 }
 
+#[cfg(feature = "mysql-client")]
 impl From<sqlx::Error> for Error {
     fn from(error: sqlx::Error) -> Self {
         Self::MySqlClient("undefined", error)

@@ -164,14 +164,12 @@ impl<T> UserBuilder<T> {
     ///
     /// # Example
     /// ```
-    /// # use std::cell::RefCell;
-    /// # use std::rc::Rc;
     /// # use streams::transport::bucket;
     /// use streams::{id::Ed25519, transport::utangle, Result, User};
     /// #
     /// # #[tokio::main]
     /// # async fn main() -> Result<()> {
-    /// # let test_transport = Rc::new(RefCell::new(bucket::Client::new()));
+    /// # let test_transport = bucket::Client::new();
     /// let author_seed = "author_secure_seed";
     /// let transport: utangle::Client = utangle::Client::new("https://chrysalis-nodes.iota.org");
     /// #

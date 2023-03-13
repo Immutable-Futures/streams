@@ -134,13 +134,13 @@ impl<'a, P, Trans> MessageBuilder<'a, P, Trans> {
 #[cfg(test)]
 mod message_builder_tests {
     use crate::{api::message_builder::MessageBuilder, User};
-    use lets::{id::Ed25519, message::Topic, transport::bucket};
+    use lets::{id::Ed25519, message::Topic, transport::bucket::Client};
 
     const BASE_BRANCH: &str = "Base Branch";
 
-    async fn make_user() -> User<bucket::Client> {
+    async fn make_user() -> User<Client> {
         let mut user = User::builder()
-            .with_transport(bucket::Client::new())
+            .with_transport(Client::new())
             .with_identity(Ed25519::from_seed("user seed"))
             .build();
 

@@ -44,13 +44,11 @@ use crate::api::{
 ///
 /// use streams::{id::Ed25519, transport::utangle, Address, Result, User};
 ///
-/// # use std::cell::RefCell;
-/// # use std::rc::Rc;
 /// # use streams::transport::bucket;
 /// #
 /// # #[tokio::main]
 /// # async fn main() -> Result<()> {
-/// # let test_transport = Rc::new(RefCell::new(bucket::Client::new()));
+/// # let test_transport = bucket::Client::new();
 /// #
 /// let author_seed = "cryptographically-secure-random-author-seed";
 /// let author_transport: utangle::Client =
@@ -358,9 +356,6 @@ where
 
 #[cfg(test)]
 mod tests {
-    use alloc::rc::Rc;
-    use core::cell::RefCell;
-
     use lets::{address::Address, id::Ed25519, transport::bucket};
 
     use crate::{
@@ -374,7 +369,7 @@ mod tests {
         Result,
     };
 
-    type Transport = Rc<RefCell<bucket::Client>>;
+    type Transport = bucket::Client;
 
     #[tokio::test]
     async fn messages_awake_pending_messages_link_to_them_even_if_their_content_is_unreadable() -> Result<()> {
@@ -438,7 +433,7 @@ mod tests {
     /// Prepare a simple scenario with an author, a subscriber, a channel announcement and a bucket
     /// transport
     async fn author_subscriber_fixture() -> Result<(User<Transport>, User<Transport>, Address, Transport)> {
-        let transport = Rc::new(RefCell::new(bucket::Client::new()));
+        let transport = bucket::Client::new();
         let mut author = User::builder()
             .with_identity(Ed25519::from_seed("author"))
             .with_transport(transport.clone())

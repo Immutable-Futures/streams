@@ -28,7 +28,7 @@
 //! # }
 //! ```
 
-#![no_std]
+#![cfg_attr(not(feature = "std"), no_std)]
 
 // Uncomment to enable printing for development
 // #[macro_use]
