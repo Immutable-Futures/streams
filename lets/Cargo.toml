@@ -27,7 +27,7 @@ bucket = ["spin"]
 # Enable Iota Identity for use with Streams
 did = ["identity_iota", "serde"]
 # Enable client for mysql,
-mysql-client = ["sqlx", "std", "chrono"]
+mysql-client = ["sqlx", "std"]
 
 [dependencies]
 # Local dependencies
@@ -53,7 +53,7 @@ serde-big-array = { version = "0.4", default-features = false}
 spin = {version = "0.9.2", default-features = false, features = ["mutex", "spin_mutex"], optional = true}
 rayon = {version = "1.5.3", default-features = false, optional = true}
 sqlx = { version = "0.6.2", features = ["runtime-tokio-native-tls", "mysql", "macros", "chrono"], optional = true}
-chrono = {version = "0.4.23", optional = true}
+chrono = {version = "0.4.23", features = ["serde"]}
 
 # Error
 thiserror-no-std = {version = "2.0.2", default-features = false}

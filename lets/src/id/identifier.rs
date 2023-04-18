@@ -32,13 +32,14 @@ use crate::{
 use crate::{
     error::Result,
     message::{ContentEncrypt, ContentEncryptSizeOf, ContentVerify},
+    id::Ed25519Pub,
 };
 
 /// User Identification types
 #[derive(Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Identifier {
     /// Ed25519 Keypair based identifier
-    Ed25519(ed25519::PublicKey),
+    Ed25519(Ed25519Pub),
     /// IOTA DID based identifier
     #[cfg(feature = "did")]
     DID(DIDUrlInfo),

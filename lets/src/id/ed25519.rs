@@ -11,6 +11,9 @@ use spongos::{KeccakF1600, SpongosRng};
 
 // Local
 
+// Public
+pub type Ed25519Pub = ed25519::PublicKey;
+
 /// Wrapper for [`ed25519::SecretKey`]
 pub struct Ed25519(ed25519::SecretKey);
 

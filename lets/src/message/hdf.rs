@@ -1,12 +1,13 @@
 use alloc::boxed::Box;
 use async_trait::async_trait;
+use chrono::Utc;
 
 use spongos::{
     ddml::{
         commands::{sizeof, unwrap, wrap, Absorb, Commit, Guard, Mask, Skip, Squeeze},
         io,
         modifiers::External,
-        types::{Mac, Maybe, NBytes, Size, Uint8},
+        types::{Mac, Maybe, NBytes, Size, Uint8, Uint32},
     },
     error::{Error as SpongosError, Result as SpongosResult},
     PRP,
@@ -54,6 +55,8 @@ pub struct HDF {
     pub publisher: Identifier,
     /// Hash of branch [`Topic`]
     pub topic_hash: TopicHash,
+    /// Utc Timestamp
+    pub timestamp: u32,
 }
 
 impl Default for HDF {
@@ -69,6 +72,7 @@ impl Default for HDF {
             sequence: 0,
             publisher: Default::default(),
             topic_hash: Default::default(),
+            timestamp: Utc::now().timestamp() as u32,
         }
     }
 }
@@ -98,6 +102,7 @@ impl HDF {
             sequence,
             publisher,
             topic_hash: topic.into(),
+            timestamp: chrono::Utc::now().timestamp() as u32,
         }
     }
 
@@ -175,6 +180,7 @@ impl ContentSizeof<HDF> for sizeof::Context {
             .mask(&hdf.topic_hash)?
             .mask(&hdf.publisher)?
             .skip(Size::new(hdf.sequence))?
+            .absorb(Uint32::new(hdf.timestamp))?
             .commit()?
             .squeeze(&MAC)?;
 
@@ -214,6 +220,7 @@ where
             .mask(&hdf.topic_hash)?
             .mask(&hdf.publisher)?
             .skip(Size::new(hdf.sequence))?
+            .absorb(Uint32::new(hdf.timestamp))?
             .commit()?
             .squeeze(&MAC)?;
 
@@ -236,6 +243,7 @@ where
         let mut frame_type = Uint8::default();
         let mut payload_frame_count_bytes = NBytes::<[u8; 3]>::default();
         let mut seq_num = Size::default();
+        let mut timestamp = Uint32::default();
 
         self.absorb(&mut encoding)?
             .absorb(&mut version)?
@@ -266,6 +274,7 @@ where
             .mask(&mut hdf.topic_hash)?
             .mask(&mut hdf.publisher)?
             .skip(&mut seq_num)?
+            .absorb(&mut timestamp)?
             .commit()?
             .squeeze(&MAC)?;
 
@@ -282,6 +291,7 @@ where
         x[3] = payload_frame_count_bytes[2];
         hdf.payload_frame_count = u32::from_be_bytes(x);
         hdf.sequence = seq_num.inner();
+        hdf.timestamp = timestamp.inner();
 
         Ok(self)
     }

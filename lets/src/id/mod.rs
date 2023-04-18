@@ -8,7 +8,7 @@ mod permission;
 mod psk;
 
 pub use self::identity::Identity;
-pub use ed25519::Ed25519;
+pub use ed25519::{Ed25519, Ed25519Pub};
 pub use identifier::Identifier;
 pub use permission::{PermissionDuration, Permissioned};
 pub use psk::{Psk, PskId};
