@@ -927,6 +927,10 @@ where
         // Check Topic
         let topic: Topic = to_topic.into();
         let prev_topic: Topic = from_topic.into();
+        // Don't allow duplicate topics
+        if topic.eq(&prev_topic) {
+            return Err(Error::DuplicateTopic(topic))
+        }
         // Check Permission
         let permission = self
             .state

@@ -68,6 +68,9 @@ Any {0} message must be linked to a previous message by including the address of
     #[error("Setup error: {0}")]
     Setup(&'static str),
 
+    #[error("Topic {0} already exists")]
+    DuplicateTopic(Topic),
+
     #[error("Topic {0} not found in store")]
     TopicNotFound(Topic),
 
