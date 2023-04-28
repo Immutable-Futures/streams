@@ -4,13 +4,13 @@
 
 Check out `CMakeLists.txt` and change the 3 options to your preference:
 
-- `IOTA_CLIENT`: Enable transport via iota_client, otherwise it's going to be Bucket which can only be used for tests
+- `IOTA_CLIENT`: Enable transport via streams utangle implementation, otherwise the client will default to a testing Bucket client instance
 - `STATIC`: Build static library when ON, otherwise dynamic library
 - `RELEASE`: Build in release or debug mode (when ON, builds release, when OFF, build debug)
 
-Edit your author and subscriber seeds in `main.c`
+Optional: Edit your seed in `main.c`, commenting out the line `rand_seed(seed, sizeof(seed));` to use a predefined seed.
 
-run `cmake .` in this folder
+run `cmake .` in this folder (for Windows, use `cmake . -G "Unix Makefiles"` to build a unix based MakeFile for building)
 
 Then run `make` to build the rust code.
 
@@ -19,7 +19,3 @@ A binary will be generated which you can run depending on your STATIC setting
 - OFF: `libiota_streams_c.so`(Unix), `iota_streams_c.dll`(Windows) and the executable `iota_streams_c`
 
 You can then run the static build or the dynamic executable. 
-
-You can set the following environment variables to change this dynamically:
-- `URL`: Change the node we use to send and receive messages (Accepts string)
-- `MWM`: Change the MWM setting we use to do POW (Accepts integer)

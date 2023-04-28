@@ -38,7 +38,9 @@ int main() {
 
 
     printf("Starting c bindings test\n\n");
+    // Replace with unique seed if desired
     char seed[] = "bindings test seed";
+    // Comment out this line if using a unique seed
     rand_seed(seed, sizeof(seed));
 
 #ifdef IOTA_STREAMS_CLIENT
