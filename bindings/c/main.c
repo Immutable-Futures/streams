@@ -1,4 +1,4 @@
-#include "iota_streams/channels.h"
+#include "iota_streams/streams.h"
 #include <stdio.h>
 #include <time.h>
 #include <assert.h>
@@ -41,7 +41,7 @@ int main() {
     char seed[] = "bindings test seed";
     rand_seed(seed, sizeof(seed));
 
-#ifdef IOTA_STREAMS_CHANNELS_CLIENT
+#ifdef IOTA_STREAMS_CLIENT
     char const *env_url = getenv("URL");
     char const *url = env_url ? env_url : "http://68.183.204.5:14265";
 
@@ -304,8 +304,14 @@ int main() {
             printf("Msg 3... ");
             e = fetch_next_message(&next_message, subB);
             printf("%s", !e? "received message subB should not have received. " : "no next message\n");
-            if (!e) printf("Type: %s\n", message_type_as_str(next_message -> message_type));
-
+            if (!e) {
+                printf("Type: %s\n", message_type_as_str(next_message->message_type));
+                // Message shouldn't have been received, so return a bad argument error
+                e = ERR_BAD_ARGUMENT;
+            } else {
+                // Message wasn't received properly, which is intended, so return ok
+                e = ERR_OK;
+            }
 
         cleanup2:
             drop_id_lists(id_lists);

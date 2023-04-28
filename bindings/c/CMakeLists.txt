@@ -10,7 +10,7 @@ option(RELEASE "Build release library (defaults to release)" ON)
 set(cargo_features "")
 
 if(${IOTA_CLIENT})
-  add_definitions(-DIOTA_STREAMS_CHANNELS_CLIENT)
+  add_definitions(-DIOTA_STREAMS_CLIENT)
   set(cargo_features "${cargo_features}uclient")
 endif(${IOTA_CLIENT})
 
