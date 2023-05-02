@@ -1,17 +1,17 @@
 [package]
 authors = [
   "Vlad Semenov <vlad.semenov@iota.org>",
-  "Dyrell Chapman <dyrell.chapman@iota.org>",
+  "Dyrell Chapman <dyrell@immutablefutures.com>",
   "Brord van Wierst <brord@iota.org>",
   "Arnau Orriols <arnau.orriols@iota.org>",
 ]
-description = "A Rust implementation of the IOTA Streams protocol"
-edition = "2018"
-keywords = ["iota", "streams", "app", "channels", "pub-sub", "communication protocol"]
+description = "A continuation of the rust implementation of the IOTA Streams protocol"
+edition = "2021"
+keywords = ["iota", "streams", "pub-sub", "communication protocol"]
 license = "Apache-2.0/MIT"
 name = "streams"
 readme = "README.md"
-version = "0.2.0"
+version = "0.2.1"
 
 [features]
 default = ["utangle-client", "std"]

@@ -227,6 +227,7 @@ impl Message {
     }
 }
 
+/// Enum representing the types of messages that can be unwrapped.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum MessageContent {
     Announcement(Announcement),
@@ -239,16 +240,21 @@ pub enum MessageContent {
     Orphan(Orphan),
 }
 
+/// Announcement [`Message`]. Announces the creation of a new stream. This is the root of a stream
+/// message tree, and is used as a foundation for subscription and listening.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Announcement {
     pub author_identifier: Identifier,
 }
 
+/// Branch Announcement [`Message`]. Contains the [`Topic`] of the newly discovered branch.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct BranchAnnouncement {
     pub topic: Topic,
 }
 
+/// Keyload [`Message`]. Contains the permissions of a particular branch, including the read
+/// approved [Psks](`Psk`) and [Permissioned Users](`Permissioned`).
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Keyload {
     pub subscribers: Vec<Permissioned<Identifier>>,
@@ -267,7 +273,8 @@ impl Keyload {
     }
 }
 
-/// Signed Packet [`Message`].
+/// Signed Packet [`Message`]. Contains the publisher [`Identifier`] as well as the unwrapped masked
+/// and public payloads.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct SignedPacket {
     /// The [`Identifier`] of the publisher
@@ -278,7 +285,7 @@ pub struct SignedPacket {
     pub public_payload: Vec<u8>,
 }
 
-/// Tagged Packet [`Message`].
+/// Tagged Packet [`Message`]. Contains the unwrapped masked and public payloads.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct TaggedPacket {
     /// A payload that was encrypted
@@ -287,7 +294,7 @@ pub struct TaggedPacket {
     pub public_payload: Vec<u8>,
 }
 
-/// Subscription [`Message`].
+/// Subscription [`Message`]. Contains the [`Identifier`] of a newly subscribed user.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Subscription {
     /// [`Identifier`] of the subscribing user
@@ -301,10 +308,10 @@ impl Subscription {
     }
 }
 
-/// Unsubscription [`Message`].
+/// Unsubscription [`Message`]. Contains the [`Identifier`] of a newly unsubscribed user.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Unsubscription {
-    /// [`Identifier`] of the unsusbscribing user
+    /// [`Identifier`] of the unsubscribing user
     pub subscriber_identifier: Identifier,
 }
 
@@ -315,7 +322,8 @@ impl Unsubscription {
     }
 }
 
-/// Orphan [`Message`].
+/// Orphan [`Message`]. A message that could not be processed correctly. Contains the raw message
+/// and the cursor the message was found at.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Orphan {
     /// Raw message that could not be processed

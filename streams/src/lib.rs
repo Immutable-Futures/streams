@@ -1,9 +1,15 @@
-//! High-level Implementation of Streams Channel Protocol.
+//! High-level Implementation of the Streams Protocol. Streams users will generate a [`User`]
+//! instance to interact with a provided transport layer (existing Client implementations can be
+//! found in the [LETS] crate, and custom Clients can be created so long as they implement the
+//! [`Transport`] trait).
+//!
+//! Uses functionality from the [LETS](lets) crate, using the sponge/crypto operations present in
+//! the [Spongos](spongos) crate.
 //!
 //! API functions can be found through the [`User`]
 //!
-//! User implementations will require a Transport
-//! [Client](`lets::transport::utangle::Client`)
+//! User implementations will require a Transport (the default implementation is the
+//! [uTangle Client](`lets::transport::utangle::Client`)
 //!
 //! ## Starting a new Channel
 //! ```
@@ -23,6 +29,7 @@
 //! #     .with_transport(test_transport)
 //!     .build();
 //!
+//! // A new stream, or branch within a stream will require a Topic label
 //! let announcement = author.create_stream("BASE_BRANCH").await?;
 //! # Ok(())
 //! # }
@@ -37,10 +44,11 @@
 #[macro_use]
 extern crate alloc;
 
-/// Protocol message types and encodings
+/// Protocol message types and encodings.
 mod message;
 
-/// [`User`] API.
+/// High level API including [`User`], [`UserBuilder`], Message [`retrieval`](`Messages`) and
+/// [`sending`](`MessageBuilder`).
 mod api;
 
 pub use api::{
@@ -57,4 +65,4 @@ pub use api::{
 mod error;
 pub use error::{Error, Result};
 
-pub use lets::{address::Address, id, message::TransportMessage, transport, error::Error as LetsError};
+pub use lets::{address::Address, error::Error as LetsError, id, message::TransportMessage, transport};

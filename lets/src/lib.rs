@@ -9,6 +9,8 @@
 //! A Streams Message must contain an `HDF` (Header) and `PCF` (Payload), and must be declared in
 //! `DDML` syntax in order to be processed correctly. Message internal processes follow `DDML`
 //! rules.
+//!
+//! Higher level API implementation can be found in the [`Streams`](../streams/index.html)
 
 #![allow(clippy::module_inception)]
 #![cfg_attr(not(feature = "std"), no_std)]

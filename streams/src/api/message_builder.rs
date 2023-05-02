@@ -4,7 +4,32 @@ use lets::{
     transport::Transport,
 };
 
-/// A builder for creating messages for transport
+/// A simple builder used by a [`User`] for creating messages for transport.
+///
+/// ```
+/// # use streams::{User, id::Identity, transport::bucket::Client, Result};
+/// # #[tokio::main]
+/// # async fn main() -> Result<()> {
+/// # let transport: Client = Client::default();
+/// # let mut user = User::builder()
+/// #    .with_transport(transport)
+/// #    .with_identity(Identity::default())
+/// #    .build();
+/// #
+/// let branch_topic = "Branch1";
+/// # user.create_stream(branch_topic).await?;
+/// let payload = "A random payload";
+///
+/// let sent_message = user
+///     .message()
+///     .with_topic(branch_topic)
+///     .with_payload(payload)
+///     .signed()
+///     .send()
+///     .await?;
+/// # Ok(())
+/// # }
+/// ```
 pub struct MessageBuilder<'a, P, Trans> {
     /// A User Client to send the message from
     user: &'a mut User<Trans>,

@@ -1,12 +1,12 @@
 [package]
 authors = [
   "Vlad Semenov <vlad.semenov@iota.org>",
-  "Dyrell Chapman <dyrell.chapman@iota.org>",
+  "Dyrell Chapman <dyrell@immutablefutures.com>",
   "Brord van Wierst <brord@iota.org>",
   "Arnau Orriols <arnau.orriols@iota.org>",
 ]
 description = "A Rust implementation of the cryptographic de/serialization library Spongos"
-edition = "2018"
+edition = "2021"
 keywords = ["iota", "spongos", "streams", "encoding", "binary", "serialization"]
 license = "Apache-2.0/MIT"
 name = "spongos"

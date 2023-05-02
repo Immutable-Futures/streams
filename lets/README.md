@@ -1,21 +1,15 @@
-# IOTA Streams Application layer: core definitions and Channels Application.
+# Streams LETS layer: Message building and Identity logic.
 
-## Streams Application
-
-Streams Application is a message-oriented cryptographic protocol. Application defines protocol parties, their roles,
-syntax and semantic of protocol messages. Messages are declared in DDML syntax and are processed according to DDML
-rules. Streams Message consists of Header and Application-specific Content.
-
-## Channels Application
-
-Channels Application has evolved from previous versions of Streams. There are two roles: Author and Subscriber. Author
-is a channel instance owner capable of proving her identity by signing messages. Subscribers in this sense are anonymous
-as their public identity (ed25519 public key) is not revealed publicly. Author can share session key information
-(Keyload) with a set of Subscribers. Author as well as allowed Subscribers can then interact privately and securely.
+## LETS 
+The `lets` crate houses message-oriented cryptographic protocols. Identification, transportation and generic message 
+handling protocols in these modules can be used to build streaming applications. Signature and encryption operations 
+are handled via the `id` module, while `message` encoding operations are managed via the `message` module. Messages are 
+indexed by an `Address` composed of an `Application Address` and `Message Identifier`, and the library provides a 
+`Transport` trait to allow for agnostic transport client creation.
 
 ## Customization
-
-There are a few known issues that araise in practice. Streams makes an attempt at tackling them by tweaking run-time and
-compile-time parameters. If Channels Application is not suitable for your needs you can implement your own Application,
-and DDML implementation as a EDSL allows you to easily wrap and unwrap messages of your Application. And when DDML is
-not powerful enough, it can be extended with custom commands.
+The foundational Streams message types `HDF` and `PCF` are described in the `message` module of this crate, while the 
+cryptographic and identification logic is within the `id` module. If new logic is desired, for example a new variable to
+process within the header frame, it is important to note that the [Content](src/message/content.rs) traits must be 
+implemented. For custom `Identity` extensions, ensure that there is an appropriate `IdentityKind` and `Identifier` type defined with 
+content traits implemented.

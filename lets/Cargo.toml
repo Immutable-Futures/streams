@@ -1,17 +1,17 @@
 [package]
 authors = [
   "Vlad Semenov <vlad.semenov@iota.org>",
-  "Dyrell Chapman <dyrell.chapman@iota.org>",
+  "Dyrell Chapman <dyrell@immutablefutures.com>",
   "Brord van Wierst <brord@iota.org>",
   "Arnau Orriols <arnau.orriols@iota.org>",
 ]
 description = "A Rust framework for developing cryptographic communication protocols"
-edition = "2018"
+edition = "2021"
 keywords = ["iota", "LETS Framework", "LETS", "Streams", "Communication Protocol"]
 license = "Apache-2.0/MIT"
 name = "lets"
 readme = "README.md"
-version = "0.2.0"
+version = "0.2.1"
 
 [features]
 default = ["utangle-client"]
