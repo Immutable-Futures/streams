@@ -331,7 +331,7 @@ impl<T> User<T> {
     /// * `msg`: The raw [`TransportMessage`]
     pub(crate) async fn handle_message(&mut self, address: Address, msg: TransportMessage) -> Result<Message>
     where
-        T: Send
+        T: Send,
     {
         let preparsed = msg
             .parse_header()
@@ -929,7 +929,7 @@ where
         let prev_topic: Topic = from_topic.into();
         // Don't allow duplicate topics
         if topic.eq(&prev_topic) {
-            return Err(Error::DuplicateTopic(topic))
+            return Err(Error::DuplicateTopic(topic));
         }
         // Check Permission
         let permission = self

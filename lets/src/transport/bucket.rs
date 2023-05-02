@@ -1,6 +1,5 @@
 // Rust
-use alloc::{boxed::Box, collections::BTreeMap, vec::Vec};
-use alloc::sync::Arc;
+use alloc::{boxed::Box, collections::BTreeMap, sync::Arc, vec::Vec};
 
 // 3rd-party
 use async_trait::async_trait;

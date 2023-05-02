@@ -48,12 +48,12 @@ pub trait Transport<'a> {
 /// Localised mapping for tests and simulations
 #[cfg(feature = "bucket")]
 pub mod bucket;
+/// `sqlx` based mysql client
+#[cfg(feature = "mysql-client")]
+pub mod mysql;
 /// `iota.rs` based tangle client
 #[cfg(any(feature = "tangle-client", feature = "tangle-client-wasm"))]
 pub mod tangle;
 /// Localised micro tangle client
 #[cfg(feature = "utangle-client")]
 pub mod utangle;
-/// `sqlx` based mysql client
-#[cfg(feature = "mysql-client")]
-pub mod mysql;

@@ -31,8 +31,8 @@ use crate::{
 
 use crate::{
     error::Result,
-    message::{ContentEncrypt, ContentEncryptSizeOf, ContentVerify},
     id::Ed25519Pub,
+    message::{ContentEncrypt, ContentEncryptSizeOf, ContentVerify},
 };
 
 /// User Identification types

@@ -1,6 +1,5 @@
 // Rust
-use alloc::{boxed::Box, vec::Vec};
-use alloc::string::ToString;
+use alloc::{boxed::Box, string::ToString, vec::Vec};
 use core::{
     convert::{TryFrom, TryInto},
     marker::PhantomData,

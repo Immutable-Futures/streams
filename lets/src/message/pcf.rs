@@ -137,7 +137,7 @@ impl<Content> PCF<Content> {
 impl<Content> ContentSizeof<PCF<Content>> for sizeof::Context
 where
     sizeof::Context: ContentSizeof<Content>,
-    Content: Send + Sync
+    Content: Send + Sync,
 {
     async fn sizeof(&mut self, pcf: &PCF<Content>) -> SpongosResult<&mut Self> {
         self.absorb(Uint8::new(pcf.frame_type))?

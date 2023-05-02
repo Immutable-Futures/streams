@@ -7,7 +7,7 @@ use spongos::{
         commands::{sizeof, unwrap, wrap, Absorb, Commit, Guard, Mask, Skip, Squeeze},
         io,
         modifiers::External,
-        types::{Mac, Maybe, NBytes, Size, Uint8, Uint32},
+        types::{Mac, Maybe, NBytes, Size, Uint32, Uint8},
     },
     error::{Error as SpongosError, Result as SpongosResult},
     PRP,

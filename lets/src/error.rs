@@ -170,7 +170,6 @@ impl From<sqlx::Error> for Error {
     }
 }
 
-
 #[cfg(feature = "utangle-client")]
 impl From<reqwest::Error> for Error {
     fn from(error: reqwest::Error) -> Self {

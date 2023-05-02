@@ -1,7 +1,9 @@
-use alloc::boxed::Box;
-use alloc::format;
-use alloc::string::{String, ToString};
-use alloc::vec::Vec;
+use alloc::{
+    boxed::Box,
+    format,
+    string::{String, ToString},
+    vec::Vec,
+};
 use core::fmt::Display;
 use libc::{c_char, size_t};
 
@@ -11,18 +13,11 @@ pub type TransportWrap = transport::utangle::Client;
 #[cfg(not(feature = "uclient"))]
 pub type TransportWrap = Rc<RefCell<transport::bucket::Client>>;
 
-use streams::{
-    Address,
-    Message as StreamsMessage,
-    MessageContent,
-    transport,
-};
+use streams::{transport, Address, Message as StreamsMessage, MessageContent};
 
 use cstr_core::{CStr, CString};
 
 use core::ptr::null;
-
-
 
 /// Last Error is a global variable to fetch the latest operational error should a task fail in
 /// the bindings. Used for troubleshooting. Empty when there is no previous error.
@@ -55,16 +50,14 @@ pub unsafe fn operation_failed<E: Display>(e: E) -> Err {
 #[repr(C)]
 pub enum PermissionType {
     Read,
-    Write
+    Write,
 }
-
-
 
 /// Convert an String-like collection of bytes into a raw pointer to the first byte
 ///
 /// This function is unsafe because it does not check that the String does not contain a null byte.
-/// Use this function instead of [`string_into_raw`] in those cases where it's certain there won't be
-/// a null byte and don't want to incur the performance penalty of the validation.
+/// Use this function instead of [`string_into_raw`] in those cases where it's certain there won't
+/// be a null byte and don't want to incur the performance penalty of the validation.
 unsafe fn string_into_raw_unchecked(string: impl Into<Vec<u8>>) -> *const c_char {
     CString::from_vec_unchecked(string.into()).into_raw()
 }
@@ -90,7 +83,6 @@ pub(crate) fn safe_drop_mut_ptr<T>(p: *mut T) {
         p.as_mut().map(|p| Box::from_raw(p));
     }
 }
-
 
 // Data Buffer
 
@@ -142,7 +134,6 @@ pub extern "C" fn drop_buffer(b: Buffer) {
     b.drop()
 }
 
-
 /// Stores the Runtime instance for the session
 static INSTANCE: OnceCell<Runtime> = OnceCell::new();
 
@@ -151,7 +142,6 @@ pub fn run_async<C: Future>(cb: C) -> C::Output {
     let runtime = INSTANCE.get_or_init(|| Runtime::new().unwrap());
     runtime.block_on(cb)
 }
-
 
 /// Create a default `TransportWrap` instance
 #[no_mangle]
@@ -165,7 +155,6 @@ pub extern "C" fn transport_drop(tsp: *mut TransportWrap) {
     safe_drop_mut_ptr(tsp)
 }
 
-
 /// Create a `uClient` `TransportWrap` for use in a `User` instance
 #[cfg(feature = "uclient")]
 #[no_mangle]
@@ -173,9 +162,6 @@ pub unsafe extern "C" fn transport_client_new_from_url(c_url: *const c_char) -> 
     let url = CStr::from_ptr(c_url).to_str().unwrap();
     safe_into_mut_ptr(TransportWrap::new(url))
 }
-
-
-
 
 #[no_mangle]
 pub unsafe extern "C" fn get_address_inst_str(address: *const Address) -> *const c_char {
@@ -186,9 +172,9 @@ pub unsafe extern "C" fn get_address_inst_str(address: *const Address) -> *const
 
 #[no_mangle]
 pub unsafe extern "C" fn get_address_id_str(address: *const Address) -> *const c_char {
-    address
-        .as_ref()
-        .map_or(null(), |addr| string_into_raw_unchecked(addr.relative().to_hex_string()))
+    address.as_ref().map_or(null(), |addr| {
+        string_into_raw_unchecked(addr.relative().to_hex_string())
+    })
 }
 
 #[no_mangle]
@@ -202,9 +188,8 @@ pub unsafe extern "C" fn get_address_index_str(address: *const Address) -> *cons
 
 #[no_mangle]
 pub unsafe extern "C" fn get_identifier_str(id: *const Identifier) -> *const c_char {
-    id.as_ref().map_or(null(), |id| {
-        string_into_raw_unchecked(hex::encode(id.as_ref()))
-    })
+    id.as_ref()
+        .map_or(null(), |id| string_into_raw_unchecked(hex::encode(id.as_ref())))
 }
 #[no_mangle]
 pub unsafe extern "C" fn get_permissioned_str(id: *const Permissioned<Identifier>) -> *const c_char {
@@ -225,7 +210,6 @@ pub unsafe extern "C" fn drop_pskid(pskid: *const PskId) {
     safe_drop_ptr(pskid)
 }
 
-
 #[no_mangle]
 pub unsafe extern "C" fn drop_str(string: *const c_char) {
     CString::from_raw(string as *mut c_char);
@@ -241,18 +225,16 @@ pub unsafe extern "C" fn drop_identifier(id: *const Identifier) {
     safe_drop_ptr(id)
 }
 
-
 /// Attempts to convert a c string into an address. If the c string is NULL or the string fails to
 /// convert to an Address properly, a zeroed out Address is returned instead
 #[no_mangle]
 pub unsafe extern "C" fn address_from_string(c_addr: *const c_char) -> *const Address {
-    CStr::from_ptr(c_addr).to_str().map_or(safe_into_ptr(Address::default()), |addr_str| {
-        Address::from_str(addr_str).map_or(safe_into_ptr(Address::default()), |addr|
-            safe_into_ptr(addr)
-        )
-    })
+    CStr::from_ptr(c_addr)
+        .to_str()
+        .map_or(safe_into_ptr(Address::default()), |addr_str| {
+            Address::from_str(addr_str).map_or(safe_into_ptr(Address::default()), |addr| safe_into_ptr(addr))
+        })
 }
-
 
 #[repr(C)]
 pub enum MessageType {
@@ -265,7 +247,6 @@ pub enum MessageType {
     Unsubscribe,
     Unknown,
 }
-
 
 fn message_type(msg_type: u8) -> MessageType {
     match msg_type {
@@ -290,11 +271,9 @@ pub unsafe extern "C" fn message_type_as_str(msg_type: MessageType) -> *const c_
         MessageType::TaggedPacket => string_into_raw_unchecked("TaggedPacket"),
         MessageType::Subscribe => string_into_raw_unchecked("Subscribe"),
         MessageType::Unsubscribe => string_into_raw_unchecked("Unsubscribe"),
-        MessageType::Unknown => string_into_raw_unchecked("Unknown")
+        MessageType::Unknown => string_into_raw_unchecked("Unknown"),
     }
 }
-
-
 
 #[repr(C)]
 pub struct Message {
@@ -310,7 +289,7 @@ impl Default for Message {
             message_type: MessageType::Unknown,
             address: safe_into_ptr(Address::default()),
             publisher: safe_into_ptr(Identifier::default()),
-            payloads: Payloads::default()
+            payloads: Payloads::default(),
         }
     }
 }
@@ -320,7 +299,7 @@ impl From<StreamsMessage> for Message {
         let address = msg.address();
         let publisher = match msg.content() {
             MessageContent::TaggedPacket(_) => Identifier::default(),
-            _ => msg.header().publisher().clone()
+            _ => msg.header().publisher().clone(),
         };
 
         let message_type = message_type(msg.header().message_type());
@@ -337,7 +316,7 @@ impl From<StreamsMessage> for Message {
 
 impl Message {
     pub unsafe fn drop(self) {
-        //safe_drop_ptr(self.message_type);
+        // safe_drop_ptr(self.message_type);
         drop_address(self.address);
         drop_identifier(self.publisher);
         self.payloads.drop();
@@ -348,7 +327,6 @@ impl Message {
 pub unsafe extern "C" fn drop_message(msg: *const Message) {
     safe_drop_ptr(msg)
 }
-
 
 #[repr(C)]
 pub struct Payloads {
@@ -368,16 +346,14 @@ impl Default for Payloads {
 impl From<MessageContent> for Payloads {
     fn from(content: MessageContent) -> Self {
         match content {
-            MessageContent::TaggedPacket(tp) =>
-                Payloads {
-                    public_payload: tp.public_payload.into(),
-                    masked_payload: tp.masked_payload.into(),
-                },
-            MessageContent::SignedPacket(sp) =>
-                Payloads {
-                    public_payload: sp.public_payload.into(),
-                    masked_payload: sp.masked_payload.into(),
-                },
+            MessageContent::TaggedPacket(tp) => Payloads {
+                public_payload: tp.public_payload.into(),
+                masked_payload: tp.masked_payload.into(),
+            },
+            MessageContent::SignedPacket(sp) => Payloads {
+                public_payload: sp.public_payload.into(),
+                masked_payload: sp.masked_payload.into(),
+            },
             _ => Payloads {
                 public_payload: Buffer::default(),
                 masked_payload: Buffer::default(),
@@ -398,16 +374,19 @@ pub extern "C" fn drop_payloads(payloads: Payloads) {
     payloads.drop()
 }
 
-
 /// Make a new `Permissioned` wrapper from `Identifier`. Returns `NullArgument` if provided
 /// `Identifier` is null.
 #[no_mangle]
-pub unsafe extern "C" fn new_permissioned(p: *mut *const Permissioned<Identifier>, id: *const Identifier, permission: PermissionType) -> Err {
+pub unsafe extern "C" fn new_permissioned(
+    p: *mut *const Permissioned<Identifier>,
+    id: *const Identifier,
+    permission: PermissionType,
+) -> Err {
     p.as_mut().map_or(Err::NullArgument, |permissioned| {
         id.as_ref().map_or(Err::NullArgument, |id| {
             let perm = match permission {
                 PermissionType::Read => Permissioned::Read(id.clone()),
-                PermissionType::Write => Permissioned::ReadWrite(id.clone(), PermissionDuration::Perpetual)
+                PermissionType::Write => Permissioned::ReadWrite(id.clone(), PermissionDuration::Perpetual),
             };
             *permissioned = safe_into_ptr(perm);
             Err::Ok
@@ -419,7 +398,6 @@ pub unsafe extern "C" fn new_permissioned(p: *mut *const Permissioned<Identifier
 pub unsafe extern "C" fn drop_permissioned(p: *const Permissioned<Identifier>) {
     safe_drop_ptr(p)
 }
-
 
 /// Utility wrapper for permissions to be injected into a stream.
 #[repr(C)]
@@ -517,7 +495,6 @@ pub unsafe extern "C" fn remove_psk_from_id_lists(ids: *mut IdLists, id: *const 
     })
 }
 
-
 #[no_mangle]
 pub unsafe extern "C" fn drop_id_lists(ids: *const IdLists) {
     safe_drop_ptr(ids)
@@ -526,10 +503,9 @@ pub unsafe extern "C" fn drop_id_lists(ids: *const IdLists) {
 mod user;
 pub use user::*;
 
-//mod sub;
-//pub use sub::*;
-use core::future::Future;
-use core::str::FromStr;
+// mod sub;
+// pub use sub::*;
+use core::{future::Future, str::FromStr};
 use once_cell::sync::OnceCell;
-use tokio::runtime::Runtime;
 use streams::id::{Identifier, PermissionDuration, Permissioned, PskId};
+use tokio::runtime::Runtime;
