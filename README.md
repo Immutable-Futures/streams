@@ -37,6 +37,8 @@ As a framework, Streams allows developers to build protocols for their specific 
 
 This process will be documented as the development progresses. However, since this crate is in an alpha stage of development it is still likely to change.
 
+***NOTE: Links and Documentation for the below crates will be updated to reflect changes with refactoring currently in progress once refactoring is complete.***
+
 At the moment, IOTA Streams includes the following crates:
 * [Channels Application](iota-streams-app-channels/README.md) featuring Channels Application.
 * [Core layers](iota-streams-core/README.md) featuring spongos automaton for sponge-based authenticated encryption, pre-shared keys, pseudo-random generator;
