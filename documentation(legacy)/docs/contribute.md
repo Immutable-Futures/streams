@@ -3,7 +3,7 @@ description: Contribute to the IOTA Client Library joining the IOTA Libraries In
 image: /img/logo/iota_mark_light.png
 keywords:
 - join
-- documentation
+- documentation(legacy)
 - project
 - contribute
 - discord

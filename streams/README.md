@@ -13,10 +13,10 @@ documentation. You can add the `--document-private-items` flag if you would like
 
 ## Streams Application 
 The streams application layer is a High-level Implementation of the Streams Protocol. Streams users will generate a 
-[`User`] instance to publish and retrieve messages within a network (preferably a distributed data network). The default
+[`User`](src/api/user.rs) instance to publish and retrieve messages within a network (preferably a distributed data network). The default
 usage of this library is over an [IOTA Tangle](https://wiki.iota.org/learn/about-iota/an-introduction-to-iota/) style 
 network. Existing Transport Client implementations can be found in the [LETS](../lets/README.md) crate, and custom 
-Clients can be created so long as they implement the [`Transport`] trait).
+Clients can be created so long as they implement the [`Transport`](../lets/src/transport/mod.rs) trait).
 
 ------------
 
