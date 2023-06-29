@@ -41,7 +41,7 @@ pub trait ContentSignSizeof<T> {
 /// stream
 #[async_trait]
 pub trait ContentSign<T> {
-    async fn sign(&mut self, signer: &T) -> Result<&mut Self>;
+    async fn sign(&mut self, signer: &mut T) -> Result<&mut Self>;
 }
 
 /// Used to authenticate the signature from the `Context` stream
@@ -57,14 +57,22 @@ pub trait ContentEncryptSizeOf<T> {
     async fn encrypt_sizeof(&mut self, recipient: &T, key: &[u8]) -> Result<&mut Self>;
 }
 
+#[cfg(not(feature = "did"))]
 /// Used to encrypt a key slice for recipient `T`
 #[async_trait]
 pub trait ContentEncrypt<T> {
     async fn encrypt(&mut self, recipient: &T, key: &[u8]) -> Result<&mut Self>;
 }
 
+#[cfg(feature = "did")]
+/// Used to encrypt a key slice for recipient `T` using Identity `I`
+#[async_trait]
+pub trait ContentEncrypt<I, T> {
+    async fn encrypt(&mut self, sender: &mut I, recipient: &mut T, key: &[u8]) -> Result<&mut Self>;
+}
+
 /// Used to decrypt a key slice for recipient `T`
 #[async_trait]
 pub trait ContentDecrypt<T> {
-    async fn decrypt(&mut self, recipient: &T, key: &mut [u8]) -> Result<&mut Self>;
+    async fn decrypt(&mut self, recipient: &mut T, key: &mut [u8]) -> Result<&mut Self>;
 }

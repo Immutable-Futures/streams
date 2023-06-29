@@ -24,13 +24,15 @@ pub enum IdentityError {
     #[error("{0}")]
     Core(identity_iota::core::Error),
     #[error("{0}")]
-    Error(identity_iota::did::Error),
+    DIDError(identity_iota::did::Error),
     #[error("{0}")]
-    DIDError(identity_iota::did::DIDError),
+    Verification(identity_iota::verification::Error),
     #[error("{0}")]
-    IotaCore(identity_iota::iota_core::Error),
+    IotaClient(iota_client::Error),
     #[error("{0}")]
-    IotaClient(identity_iota::client::Error),
+    Iota(identity_iota::iota::Error),
+    #[error("{0}")]
+    Doc(identity_iota::document::Error),
     #[error("{0}")]
     Other(String),
 }
@@ -45,27 +47,34 @@ impl From<identity_iota::core::Error> for IdentityError {
 #[cfg(feature = "did")]
 impl From<identity_iota::did::Error> for IdentityError {
     fn from(error: identity_iota::did::Error) -> Self {
-        Self::Error(error)
-    }
-}
-
-#[cfg(feature = "did")]
-impl From<identity_iota::did::DIDError> for IdentityError {
-    fn from(error: identity_iota::did::DIDError) -> Self {
         Self::DIDError(error)
     }
 }
 
 #[cfg(feature = "did")]
-impl From<identity_iota::iota_core::Error> for IdentityError {
-    fn from(error: identity_iota::iota_core::Error) -> Self {
-        Self::IotaCore(error)
+impl From<identity_iota::verification::Error> for IdentityError {
+    fn from(error: identity_iota::verification::Error) -> Self {
+        Self::Verification(error)
     }
 }
 
 #[cfg(feature = "did")]
-impl From<identity_iota::client::Error> for IdentityError {
-    fn from(error: identity_iota::client::Error) -> Self {
+impl From<identity_iota::document::Error> for IdentityError {
+    fn from(error: identity_iota::document::Error) -> Self {
+        Self::Doc(error)
+    }
+}
+
+#[cfg(feature = "did")]
+impl From<identity_iota::iota::Error> for IdentityError {
+    fn from(error: identity_iota::iota::Error) -> Self {
+        Self::Iota(error)
+    }
+}
+
+#[cfg(feature = "did")]
+impl From<iota_client::Error> for IdentityError {
+    fn from(error: iota_client::Error) -> Self {
         Self::IotaClient(error)
     }
 }
@@ -159,7 +168,19 @@ impl From<FromUtf8Error> for Error {
 
 impl From<FromHexError> for Error {
     fn from(error: FromHexError) -> Self {
-        Self::Encoding("string", "hex", Box::new(Self::External(error.into())))
+        Self::Encoding("string", "hex", Box::new(Self::External(anyhow::anyhow!(error))))
+    }
+}
+
+impl From<serde_json::Error> for Error {
+    fn from(error: serde_json::Error) -> Self {
+        Self::Encoding("string", "serde_json", Box::new(Self::External(anyhow::anyhow!(error))))
+    }
+}
+
+impl From<prefix_hex::Error> for Error {
+    fn from(error: prefix_hex::Error) -> Self {
+        Self::Encoding("string", "prefix_hex", Box::new(Self::External(anyhow::anyhow!(error))))
     }
 }
 

@@ -49,7 +49,7 @@ pub(crate) struct Wrap<'a> {
     /// Payload slice that will be masked
     masked_payload: &'a [u8],
     /// The [`Identity`] of the publisher
-    user_id: &'a Identity,
+    user_id: &'a mut Identity,
 }
 
 impl<'a> Wrap<'a> {
@@ -62,7 +62,7 @@ impl<'a> Wrap<'a> {
     /// * `masked_payload`: A payload taht will be masked.
     pub(crate) fn new(
         initial_state: &'a mut Spongos,
-        user_id: &'a Identity,
+        user_id: &'a mut Identity,
         public_payload: &'a [u8],
         masked_payload: &'a [u8],
     ) -> Self {
@@ -97,7 +97,7 @@ where
             .mask(signed_packet.user_id.identifier())?
             .absorb(Bytes::new(signed_packet.public_payload))?
             .mask(Bytes::new(signed_packet.masked_payload))?
-            .sign(signed_packet.user_id)
+            .sign(&mut signed_packet.user_id)
             .await?;
         Ok(self)
     }

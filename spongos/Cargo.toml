@@ -26,7 +26,7 @@ osrng = ["rand/std_rng", "rand/getrandom", "iota-crypto/rand"]
 
 [dependencies]
 # IOTA Dependencies
-iota-crypto = {version = "0.9.1", default-features = false, features = ["ed25519", "x25519"]}
+iota-crypto = {version = "0.15.3", default-features = false, features = ["ed25519", "x25519"]}
 
 # 3rd-party dependencies 
 digest = {version = "0.9", default-features = false}

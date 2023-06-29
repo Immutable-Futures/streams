@@ -237,7 +237,7 @@ pub unsafe extern "C" fn update_permissions(
                 ids.as_ref().map_or(Err::NullArgument, |ids| {
                     run_async(user.send_keyload(
                         topic,
-                        ids.user_ids.iter().map(|id| id.as_ref()),
+                        ids.user_ids.iter().map(|id| id.clone()),
                         ids.psk_ids.iter().map(|id| *id),
                     ))
                     .map_or(Err::OperationFailed, |response| {

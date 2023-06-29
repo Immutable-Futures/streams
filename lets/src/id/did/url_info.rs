@@ -1,18 +1,20 @@
 // Rust
 use alloc::{string::String, vec::Vec};
+use core::fmt::{Debug, Formatter};
+use std::{cmp::Ordering, hash::Hasher};
 
 // IOTA
 use identity_iota::{
     core::BaseEncoding,
-    crypto::{Ed25519 as DIDEd25519, JcsEd25519, Named, Proof, ProofValue},
-    did::{verifiable::VerifierOptions, DID as IdentityDID},
-    iota_core::IotaDID,
+    iota::IotaDID,
+    verification::MethodData
 };
+
+use iota_client::secret::stronghold::StrongholdSecretManager;
 
 use crate::{
     alloc::string::ToString,
     error::{Error, Result},
-    id::did::DataWrapper,
 };
 
 // Streams
@@ -27,7 +29,6 @@ use spongos::{
 };
 
 /// `DID` Document details
-#[derive(Default, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 pub struct DIDUrlInfo {
     /// `DID` string
     did: String,
@@ -37,6 +38,75 @@ pub struct DIDUrlInfo {
     exchange_fragment: String,
     /// Fragment label for signature key method
     signing_fragment: String,
+    /// Stronghold Adapter
+    stronghold: Option<StrongholdSecretManager>,
+}
+
+impl Default for DIDUrlInfo {
+    fn default() -> Self {
+        DIDUrlInfo::new(
+            IotaDID::new(&[0_u8;32], &"dflt".try_into().unwrap()),
+            String::new(),
+            String::new(),
+            String::new()
+        )
+    }
+}
+
+impl Clone for DIDUrlInfo {
+    fn clone(&self) -> Self {
+        DIDUrlInfo {
+            did: self.did.clone(),
+            client_url: self.client_url.clone(),
+            exchange_fragment: self.exchange_fragment.clone(),
+            signing_fragment: self.signing_fragment.clone(),
+            stronghold: None
+        }
+    }
+}
+
+impl std::hash::Hash for DIDUrlInfo {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.did.hash(state);
+        self.client_url.hash(state);
+        self.exchange_fragment.hash(state);
+        self.signing_fragment.hash(state);
+    }
+}
+
+impl PartialEq for DIDUrlInfo {
+    fn eq(&self, other: &Self) -> bool {
+        self.did == other.did
+        && self.client_url == other.client_url
+        && self.exchange_fragment == other.exchange_fragment
+        && self.signing_fragment == other.signing_fragment
+    }
+}
+
+impl Eq for DIDUrlInfo {}
+
+impl PartialOrd for DIDUrlInfo {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(&other))
+    }
+}
+
+impl Ord for DIDUrlInfo {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.did.cmp(&other.did)
+    }
+}
+
+impl Debug for DIDUrlInfo {
+    fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
+        f.write_str(&format!(
+            "{{\n\tdid: {},\n\tclient_url: {},\n\texchange_fragment{},\n\tsigning_fragment{}\n}}",
+            self.did,
+            self.client_url,
+            self.exchange_fragment,
+            self.signing_fragment
+        ))
+    }
 }
 
 impl DIDUrlInfo {
@@ -45,15 +115,27 @@ impl DIDUrlInfo {
     /// # Arguments
     /// * `did`: DID string
     /// * `client_url`: Node endpoint URL
+    /// * `stronghold`: Stronghold path
     /// * `exchange_fragment`: Label for exchange key methods
     /// * `signing_fragment`: Label for signature key methods
     pub fn new<T: Into<String>>(did: IotaDID, client_url: T, exchange_fragment: T, signing_fragment: T) -> Self {
         Self {
-            did: did.into_string(),
+            did: did.to_string(),
             client_url: client_url.into(),
             exchange_fragment: exchange_fragment.into(),
             signing_fragment: signing_fragment.into(),
+            stronghold: None,
         }
+    }
+
+    pub fn with_stronghold(mut self, stronghold: StrongholdSecretManager) -> Self {
+        self.stronghold = Some(stronghold);
+        self
+    }
+
+    pub fn stronghold(&mut self) -> Result<&mut StrongholdSecretManager> {
+        self.stronghold.as_mut()
+            .ok_or(Error::did("fetching stronghold", "stronghold not found".to_string()))
     }
 
     /// Authenticates a hash value and the associated signature using the publisher [`DIDUrlInfo`]
@@ -63,25 +145,27 @@ impl DIDUrlInfo {
     /// * `signature_bytes`: Raw bytes for signature
     /// * `hash`: Hash value used for signature
     pub(crate) async fn verify(&self, signing_fragment: &str, signature_bytes: &[u8], hash: &[u8]) -> Result<()> {
-        let did_url = IotaDID::parse(self.did())
-            .map_err(|e| Error::did("parse did", e))?
-            .join(signing_fragment)
-            .map_err(|e| Error::did("join did", e))?;
-        let mut signature = Proof::new(JcsEd25519::<DIDEd25519>::NAME, did_url);
-        signature.set_value(ProofValue::Signature(BaseEncoding::encode_base58(&signature_bytes)));
-
-        let data = DataWrapper::new(hash).with_signature(signature);
-
         let doc = super::resolve_document(self).await?;
-        doc.document
-            .verify_data(&data, &VerifierOptions::new())
-            .map_err(|e| Error::did("verify data from document", e))?;
-
-        Ok(())
+        let method = doc.resolve_method(signing_fragment, None).unwrap();
+        match method.data() {
+            MethodData::PublicKeyMultibase(pk) => {
+                // Multibase is 32 bytes long there should be no errors unwrapping conversion
+                let pk_bytes: [u8;32] = BaseEncoding::decode_multibase(&pk)
+                    .map_err(|e| Error::did("verify data from document", e.to_string()))?
+                    .try_into().unwrap();
+                let sig = crypto::signatures::ed25519::Signature::from_bytes(signature_bytes.try_into().unwrap());
+                if crypto::signatures::ed25519::PublicKey::try_from(pk_bytes).unwrap().verify(&sig, hash) {
+                    Ok(())
+                } else {
+                    Err(Error::did("verify data from document", "failed to verify".to_string()))
+                }
+            }
+            _ => Err(Error::did("verify data from document", "not the right method data".to_string()))
+        }
     }
 
     /// Returns the `DID` string
-    pub(crate) fn did(&self) -> &str {
+    pub fn did(&self) -> &str {
         &self.did
     }
 

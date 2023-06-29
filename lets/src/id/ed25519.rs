@@ -4,7 +4,7 @@ use core::hash::Hash;
 // 3rd-party
 
 // IOTA
-use crypto::signatures::ed25519;
+use crypto::{keys::x25519, signatures::ed25519};
 
 // Streams
 use spongos::{KeccakF1600, SpongosRng};
@@ -43,6 +43,10 @@ impl Ed25519 {
     /// Returns a reference to the inner [`ed25519::SecretKey`]
     pub(crate) fn inner(&self) -> &ed25519::SecretKey {
         &self.0
+    }
+
+    pub(crate) fn to_x25519(&self) -> x25519::SecretKey {
+        x25519::SecretKey::from_bytes(self.inner().to_bytes())
     }
 }
 

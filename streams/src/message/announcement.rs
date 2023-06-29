@@ -42,7 +42,7 @@ use spongos::{
 /// A struct that holds references needed for announcement message encoding
 pub(crate) struct Wrap<'a> {
     /// The [`Identity`] of the sender of the message
-    user_id: &'a Identity,
+    user_id: &'a mut Identity,
     /// The [`Topic`] of the base branch of the stream
     topic: &'a Topic,
 }
@@ -53,7 +53,7 @@ impl<'a> Wrap<'a> {
     /// # Arguments
     /// * `user_id`: The [`Identity`] of the sender
     /// * `topic`: The base branch [`Topic`] for the stream
-    pub(crate) fn new(user_id: &'a Identity, topic: &'a Topic) -> Self {
+    pub(crate) fn new(user_id: &'a mut Identity, topic: &'a Topic) -> Self {
         Self { user_id, topic }
     }
 }
