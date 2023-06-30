@@ -46,7 +46,7 @@ pub(crate) struct Wrap<'a> {
     /// The base [`Spongos`] state that the message will be joined to
     initial_state: &'a mut Spongos,
     /// The [`Identity`] of the publisher
-    user_id: &'a Identity,
+    user_id: &'a mut Identity,
     /// The new branch [`Topic`]
     new_topic: &'a Topic,
 }
@@ -58,7 +58,7 @@ impl<'a> Wrap<'a> {
     /// * `initial_state`: The initial [`Spongos`] state the message will be joined to
     /// * `user_id`: The [`Identity`] of the publisher
     /// * `new_topic`: the new branch [`Topic`]
-    pub(crate) fn new(initial_state: &'a mut Spongos, user_id: &'a Identity, new_topic: &'a Topic) -> Self {
+    pub(crate) fn new(initial_state: &'a mut Spongos, user_id: &'a mut Identity, new_topic: &'a Topic) -> Self {
         Self {
             initial_state,
             user_id,
@@ -88,7 +88,7 @@ where
         self.join(announcement.initial_state)?
             .mask(announcement.user_id.identifier())?
             .mask(announcement.new_topic)?
-            .sign(announcement.user_id)
+            .sign(announcement.user_id.identity_kind())
             .await?
             .commit()?;
         Ok(self)

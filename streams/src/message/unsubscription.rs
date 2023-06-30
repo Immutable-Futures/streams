@@ -39,7 +39,7 @@ pub(crate) struct Wrap<'a> {
     /// The base [`Spongos`] state that the message will be joined to
     initial_state: &'a mut Spongos,
     /// The [`Identity`] of the subscriber
-    subscriber_id: &'a Identity,
+    subscriber_id: &'a mut Identity,
 }
 
 impl<'a> Wrap<'a> {
@@ -48,7 +48,7 @@ impl<'a> Wrap<'a> {
     /// # Arguments:
     /// * `initial_state`: The initial [`Spongos`] state the message will be joined to
     /// * `subscriber_id`: The [`Identity`] of the subscriber.
-    pub(crate) fn new(initial_state: &'a mut Spongos, subscriber_id: &'a Identity) -> Self {
+    pub(crate) fn new(initial_state: &'a mut Spongos, subscriber_id: &'a mut Identity) -> Self {
         Self {
             initial_state,
             subscriber_id,

@@ -34,6 +34,7 @@ use core::{iter::IntoIterator, marker::PhantomData};
 use async_trait::async_trait;
 
 // IOTA
+#[cfg(not(feature = "did"))]
 use crypto::keys::x25519;
 use hashbrown::HashMap;
 
@@ -44,6 +45,8 @@ use lets::{
         self, ContentDecrypt, ContentEncrypt, ContentEncryptSizeOf, ContentSign, ContentSignSizeof, ContentVerify,
     },
 };
+#[cfg(feature = "did")]
+use lets::id::did::DID_ENCRYPTED_DATA_SIZE;
 use spongos::{
     ddml::{
         commands::{sizeof, unwrap, wrap, Absorb, Commit, Fork, Join, Mask},
@@ -73,7 +76,7 @@ pub(crate) struct Wrap<'a, 'b, Subscribers, Psks> {
     /// An iterator of [`Psks`] to mask the key with
     psks: Psks,
     /// The [`Identity`] of the stream author
-    author_id: &'a Identity,
+    author_id: &'a mut Identity,
     // panthom subscriber's lifetime needed because we cannot add lifetime parameters to `ContentWrap` trait method.
     // subscribers need a different lifetime because they are provided directly from downstream. They are not stored by
     // the user instance thus they don't share its lifetime
@@ -97,12 +100,12 @@ impl<'a, 'b, Subscribers, Psks> Wrap<'a, 'b, Subscribers, Psks> {
         psks: Psks,
         key: [u8; KEY_SIZE],
         nonce: [u8; NONCE_SIZE],
-        author_id: &'a Identity,
+        author_id: &'a mut Identity,
     ) -> Self
     where
-        Subscribers: IntoIterator<Item = Permissioned<&'b Identifier>>,
+        Subscribers: IntoIterator<Item = Permissioned<Identifier>>,
         Subscribers::IntoIter: ExactSizeIterator,
-        Psks: IntoIterator<Item = &'a (PskId, &'a Psk)> + Clone,
+        Psks: IntoIterator<Item = &'a (PskId, Psk)> + Clone,
         Psks::IntoIter: ExactSizeIterator,
     {
         Self {
@@ -120,9 +123,9 @@ impl<'a, 'b, Subscribers, Psks> Wrap<'a, 'b, Subscribers, Psks> {
 #[async_trait]
 impl<'a, 'b, Subscribers, Psks> message::ContentSizeof<Wrap<'a, 'b, Subscribers, Psks>> for sizeof::Context
 where
-    Subscribers: IntoIterator<Item = Permissioned<&'b Identifier>> + Clone + Send + Sync,
+    Subscribers: IntoIterator<Item = Permissioned<Identifier>> + Clone + Send + Sync,
     Subscribers::IntoIter: ExactSizeIterator + Send,
-    Psks: IntoIterator<Item = &'a (PskId, &'a Psk)> + Clone + Send + Sync,
+    Psks: IntoIterator<Item = &'a (PskId, Psk)> + Clone + Send + Sync,
     Psks::IntoIter: ExactSizeIterator + Send,
 {
     async fn sizeof(&mut self, keyload: &Wrap<'a, 'b, Subscribers, Psks>) -> Result<&mut sizeof::Context> {
@@ -158,9 +161,9 @@ where
 #[async_trait]
 impl<'a, 'b, OS, Subscribers, Psks> message::ContentWrap<Wrap<'a, 'b, Subscribers, Psks>> for wrap::Context<OS>
 where
-    Subscribers: IntoIterator<Item = Permissioned<&'b Identifier>> + Clone + Send,
+    Subscribers: IntoIterator<Item = Permissioned<Identifier>> + Clone + Send,
     Subscribers::IntoIter: ExactSizeIterator + Send,
-    Psks: IntoIterator<Item = &'a (PskId, &'a Psk)> + Clone + Send,
+    Psks: IntoIterator<Item = &'a (PskId, Psk)> + Clone + Send,
     Psks::IntoIter: ExactSizeIterator + Send,
     OS: io::OStream,
 {
@@ -173,10 +176,17 @@ where
             .absorb(NBytes::new(keyload.nonce))?
             .absorb(n_subscribers)?;
         // Loop through provided identifiers, masking the shared key for each one
+        #[cfg(not(feature = "did"))]
         for subscriber in subscribers {
             self.fork()
-                .mask(&subscriber)?
                 .encrypt(subscriber.identifier(), &keyload.key)
+                .await?;
+        }
+        #[cfg(feature = "did")]
+        for mut subscriber in subscribers {
+            self.fork()
+                .mask(&subscriber)?
+                .encrypt(keyload.author_id.identity_kind(), subscriber.identifier_mut(), &keyload.key)
                 .await?;
         }
         self.absorb(n_psks)?;
@@ -189,7 +199,7 @@ where
                 .mask(NBytes::new(&keyload.key))?;
         }
         self.absorb(External::new(&NBytes::new(&keyload.key)))?
-            .sign(keyload.author_id)
+            .sign(&mut keyload.author_id)
             .await?
             .commit()?;
         Ok(self)
@@ -209,7 +219,7 @@ pub(crate) struct Unwrap<'a> {
     /// The [`Identifier`] of the admin
     author_id: &'a Identifier,
     /// The [`Identity`] of the reader
-    user_id: Option<&'a Identity>,
+    user_id: Option<&'a mut Identity>,
 }
 
 impl<'a> Unwrap<'a> {
@@ -221,7 +231,7 @@ impl<'a> Unwrap<'a> {
     /// * `author_id`: The [`Identifier`] of the author of the stream
     pub(crate) fn new(
         initial_state: &'a mut Spongos,
-        user_id: Option<&'a Identity>,
+        user_id: Option<&'a mut Identity>,
         author_id: &'a Identifier,
         psk_store: &'a HashMap<PskId, Psk>,
     ) -> Self {
@@ -256,20 +266,26 @@ where
             .absorb(&mut n_subscribers)?;
 
         for _ in 0..n_subscribers.inner() {
+            #[cfg(not(feature = "did"))]
+            let drop_len = KEY_SIZE + x25519::PUBLIC_KEY_LENGTH;
+            #[cfg(feature = "did")]
+            let drop_len = DID_ENCRYPTED_DATA_SIZE;
+
             let mut fork = self.fork();
             // Loop through provided number of identifiers and subsequent keys
             let mut subscriber_id = Permissioned::<Identifier>::default();
             fork.mask(&mut subscriber_id)?;
 
             if key.is_none() && keyload.user_id.is_some() {
-                let user_id = keyload.user_id.unwrap();
+                // Can unwrap if user_id is some
+                let user_id = keyload.user_id.as_mut().unwrap();
                 if subscriber_id.identifier() == user_id.identifier() {
-                    fork.decrypt(user_id, key.get_or_insert([0u8; KEY_SIZE])).await?;
+                    fork.decrypt(user_id.identity_kind(), key.get_or_insert([0u8; KEY_SIZE])).await?;
                 } else {
-                    fork.drop(KEY_SIZE + x25519::PUBLIC_KEY_LENGTH)?;
+                    fork.drop(drop_len)?;
                 }
             } else {
-                fork.drop(KEY_SIZE + x25519::PUBLIC_KEY_LENGTH)?;
+                fork.drop(drop_len)?;
             }
             keyload.subscribers.push(subscriber_id);
         }

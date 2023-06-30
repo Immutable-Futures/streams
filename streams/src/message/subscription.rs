@@ -30,19 +30,16 @@ use alloc::boxed::Box;
 use async_trait::async_trait;
 
 // IOTA
-use crypto::keys::x25519;
 
 // Streams
 use lets::{
     id::{Identifier, Identity},
-    message::{ContentSign, ContentSignSizeof, ContentSizeof, ContentUnwrap, ContentVerify, ContentWrap},
+    message::{ContentSign, ContentSignSizeof, ContentSizeof, ContentUnwrap, ContentVerify, ContentWrap,
+              ContentEncrypt, ContentDecrypt, ContentEncryptSizeOf
+    },
 };
 use spongos::{
-    ddml::{
-        commands::{sizeof, unwrap, wrap, Join, Mask, X25519},
-        io,
-        types::NBytes,
-    },
+    ddml::{commands::{sizeof, unwrap, wrap, Join, Mask}, io},
     error::Result,
     Spongos,
 };
@@ -54,9 +51,9 @@ pub(crate) struct Wrap<'a> {
     /// Unique key used for unsubscription request
     unsubscribe_key: [u8; 32],
     /// The [`Identity`] of the subscriber
-    subscriber_id: &'a Identity,
+    subscriber_id: &'a mut Identity,
     /// The authors [`x25519::PublicKey`]
-    author_ke_pk: &'a x25519::PublicKey,
+    author_identifier: &'a mut Identifier,
 }
 
 impl<'a> Wrap<'a> {
@@ -66,18 +63,18 @@ impl<'a> Wrap<'a> {
     /// * `initial_state`: The initial [`Spongos`] state the message will be joined to
     /// * `unsubscribe_key`: A unique key for unsubscribing later.
     /// * `subscriber_id`: The [`Identity`] of the subscriber.
-    /// * `author_ke_pk`: The author's public exchange key
+    /// * `author_identifier`: The author's public exchange key
     pub(crate) fn new(
         initial_state: &'a mut Spongos,
         unsubscribe_key: [u8; 32],
-        subscriber_id: &'a Identity,
-        author_ke_pk: &'a x25519::PublicKey,
+        subscriber_id: &'a mut Identity,
+        author_identifier: &'a mut Identifier,
     ) -> Self {
         Self {
             initial_state,
             unsubscribe_key,
             subscriber_id,
-            author_ke_pk,
+            author_identifier,
         }
     }
 }
@@ -85,7 +82,8 @@ impl<'a> Wrap<'a> {
 #[async_trait]
 impl<'a> ContentSizeof<Wrap<'a>> for sizeof::Context {
     async fn sizeof(&mut self, subscription: &Wrap<'a>) -> Result<&mut Self> {
-        self.x25519(subscription.author_ke_pk, NBytes::new(subscription.unsubscribe_key))?
+        self.encrypt_sizeof(subscription.author_identifier, &subscription.unsubscribe_key)
+            .await?
             .mask(subscription.subscriber_id.identifier())?
             .sign_sizeof(subscription.subscriber_id)
             .await?;
@@ -99,9 +97,12 @@ where
     OS: io::OStream,
 {
     async fn wrap(&mut self, subscription: &mut Wrap<'a>) -> Result<&mut Self> {
-        self.join(subscription.initial_state)?
-            .x25519(subscription.author_ke_pk, NBytes::new(subscription.unsubscribe_key))?
-            .mask(subscription.subscriber_id.identifier())?
+        let ctx = self.join(subscription.initial_state)?;
+            #[cfg(not(feature = "did"))]
+            ctx.encrypt(subscription.author_identifier, &subscription.unsubscribe_key).await?;
+            #[cfg(feature = "did")]
+            ctx.encrypt(subscription.subscriber_id.identity_kind(), subscription.author_identifier, &subscription.unsubscribe_key).await?;
+        ctx.mask(subscription.subscriber_id.identifier())?
             .sign(subscription.subscriber_id)
             .await?;
         Ok(self)
@@ -116,8 +117,8 @@ pub(crate) struct Unwrap<'a> {
     unsubscribe_key: [u8; 32],
     /// The [`Identifier`] of the subscriber
     subscriber_identifier: Identifier,
-    /// The author's [x25519::SecretKey`]
-    author_ke_sk: &'a x25519::SecretKey,
+    /// The author's [`Identity`]
+    author_id: &'a mut Identity,
 }
 
 impl<'a> Unwrap<'a> {
@@ -126,12 +127,12 @@ impl<'a> Unwrap<'a> {
     /// # Arguments:
     /// * `initial_state`: The initial [`Spongos`] state the message will be joined to
     /// * `author_ke_sk`: The author's secret exchange key
-    pub(crate) fn new(initial_state: &'a mut Spongos, author_ke_sk: &'a x25519::SecretKey) -> Self {
+    pub(crate) fn new(initial_state: &'a mut Spongos, author_id: &'a mut Identity) -> Self {
         Self {
             initial_state,
             unsubscribe_key: Default::default(),
             subscriber_identifier: Default::default(),
-            author_ke_sk,
+            author_id,
         }
     }
 
@@ -152,11 +153,9 @@ where
     IS: io::IStream + Send,
 {
     async fn unwrap(&mut self, subscription: &mut Unwrap<'a>) -> Result<&mut Self> {
-        self.join(subscription.initial_state)?
-            .x25519(
-                subscription.author_ke_sk,
-                NBytes::new(&mut subscription.unsubscribe_key),
-            )?
+        let ctx = self.join(subscription.initial_state)?;
+        ctx.decrypt(&mut subscription.author_id, &mut subscription.unsubscribe_key)
+            .await?
             .mask(&mut subscription.subscriber_identifier)?
             .verify(&subscription.subscriber_identifier)
             .await?;

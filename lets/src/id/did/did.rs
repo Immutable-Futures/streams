@@ -2,19 +2,15 @@
 use core::hash::Hash;
 
 // IOTA
-use crypto::{keys::x25519, signatures::ed25519};
-use identity_iota::{
-    client::{Client as DIDClient, ResolvedIotaDocument},
-    crypto::{KeyPair as DIDKeyPair, KeyType},
-    iota_core::IotaDID,
-};
+use identity_iota::iota::{IotaDID, IotaDocument, IotaIdentityClientExt};
+use identity_iota::verification::VerificationMethod;
+use iota_client::Client as DIDClient;
 
 // Streams
 use spongos::{
     ddml::{
         commands::{sizeof, unwrap, wrap, Mask},
         io,
-        types::NBytes,
     },
     error::{Error as SpongosError, Result as SpongosResult},
     PRP,
@@ -30,19 +26,27 @@ use crate::{
 ///
 /// # Arguments
 /// * `url_info`: The document details
-pub(crate) async fn resolve_document(url_info: &DIDUrlInfo) -> Result<ResolvedIotaDocument> {
+pub(crate) async fn resolve_document(url_info: &DIDUrlInfo) -> Result<IotaDocument> {
     let did_url = IotaDID::parse(url_info.did()).map_err(|e| Error::did("parse did url", e))?;
-    let doc = DIDClient::builder()
-        .network(did_url.network().map_err(|e| Error::did("DIDClient set network", e))?)
-        .primary_node(url_info.client_url(), None, None)
+    let client = DIDClient::builder()
+        .with_primary_node(url_info.client_url(), None)
         .map_err(|e| Error::did("DIDClient set primary node", e))?
-        .build()
-        .await
+        .finish()
         .map_err(|e| Error::did("build DID Client", e))?
-        .read_document(&did_url)
+    let doc = client.resolve_did(&did_url)
         .await
         .map_err(|e| Error::did("read DID document", e))?;
     Ok(doc)
+}
+
+pub(crate) async fn get_exchange_method(info: &DIDUrlInfo) -> SpongosResult<VerificationMethod> {
+    let exchange_fragment = info.exchange_fragment().to_string();
+    let doc = resolve_document(info)
+        .await
+        .map_err(|e| SpongosError::Context("ContentEncrypt", e.to_string()))?;
+    doc.resolve_method(&exchange_fragment, None)
+        .ok_or(SpongosError::Context("ContentEncrypt", "failed to resolve method".to_string()))
+        .map(|method| method.clone())
 }
 
 /// Type of `DID` implementation
@@ -80,9 +84,7 @@ impl Default for DID {
 
 impl Mask<&DID> for sizeof::Context {
     fn mask(&mut self, did: &DID) -> SpongosResult<&mut Self> {
-        self.mask(did.info().url_info())?
-            .mask(NBytes::new(did.info().keypair().private()))?
-            .mask(NBytes::new(did.info().exchange_keypair().private()))
+        self.mask(did.info().url_info())
     }
 }
 
@@ -92,9 +94,7 @@ where
     OS: io::OStream,
 {
     fn mask(&mut self, did: &DID) -> SpongosResult<&mut Self> {
-        self.mask(did.info().url_info())?
-            .mask(NBytes::new(did.info().keypair().private()))?
-            .mask(NBytes::new(did.info().exchange_keypair().private()))
+        self.mask(did.info().url_info())
     }
 }
 
@@ -105,18 +105,8 @@ where
 {
     fn mask(&mut self, did: &mut DID) -> SpongosResult<&mut Self> {
         let mut url_info = DIDUrlInfo::default();
-        let mut private_key_bytes = [0; ed25519::SECRET_KEY_LENGTH];
-        let mut exchange_private_key_bytes = [0; x25519::SECRET_KEY_LENGTH];
-        self.mask(&mut url_info)?
-            .mask(NBytes::new(&mut private_key_bytes))?
-            .mask(NBytes::new(&mut exchange_private_key_bytes))?;
-
-        let keypair = DIDKeyPair::try_from_private_key_bytes(KeyType::Ed25519, &private_key_bytes)
-            .map_err(|e| SpongosError::Context("Mask", Error::did("unmask DID private key", e).to_string()))?;
-        let xkeypair = DIDKeyPair::try_from_private_key_bytes(KeyType::X25519, &exchange_private_key_bytes)
-            .map_err(|e| SpongosError::Context("Mask", Error::did("unmask DID exchange private key", e).to_string()))?;
-        *did.info_mut().keypair_mut() = keypair;
-        *did.info_mut().exchange_keypair_mut() = xkeypair;
+        self.mask(&mut url_info)?;
+        *did = DID::PrivateKey(DIDInfo::new(url_info));
 
         Ok(self)
     }
@@ -127,10 +117,6 @@ where
 pub struct DIDInfo {
     /// Document retrieval information
     url_info: DIDUrlInfo,
-    /// Iota Identity based KeyPair for signatures
-    keypair: KeyPair,
-    /// Iota Identity based KeyPair for key exchange
-    exchange_keypair: KeyPair,
 }
 
 impl DIDInfo {
@@ -140,11 +126,9 @@ impl DIDInfo {
     /// * `url_info`: Document retrieval information
     /// * `keypair`: DID KeyPair for signatures
     /// * `exchange_keypair`: DID KeyPair for key exchange
-    pub fn new(url_info: DIDUrlInfo, keypair: DIDKeyPair, exchange_keypair: DIDKeyPair) -> Self {
+    pub fn new(url_info: DIDUrlInfo) -> Self {
         Self {
             url_info,
-            keypair: KeyPair(keypair),
-            exchange_keypair: KeyPair(exchange_keypair),
         }
     }
 
@@ -156,33 +140,6 @@ impl DIDInfo {
     /// Returns a mutable reference to the [`DIDUrlInfo`]
     pub fn url_info_mut(&mut self) -> &mut DIDUrlInfo {
         &mut self.url_info
-    }
-
-    /// Returns a reference to the signature [`DIDKeyPair`]
-    pub(crate) fn keypair(&self) -> &DIDKeyPair {
-        &self.keypair.0
-    }
-
-    /// Returns a mutable reference to the signature [`DIDKeyPair`]
-    fn keypair_mut(&mut self) -> &mut DIDKeyPair {
-        &mut self.keypair.0
-    }
-
-    /// Returns a reference to the key exchange [`DIDKeyPair`]
-    fn exchange_keypair(&self) -> &DIDKeyPair {
-        &self.exchange_keypair.0
-    }
-
-    /// Returns a mutable reference to the key exchange [`DIDKeyPair`]
-    fn exchange_keypair_mut(&mut self) -> &mut DIDKeyPair {
-        &mut self.exchange_keypair.0
-    }
-
-    /// Converts key exchange [`DIDKeyPair`] into an [`x25519::SecretKey`] for native Streams
-    /// operations
-    pub(crate) fn exchange_key(&self) -> Result<x25519::SecretKey> {
-        x25519::SecretKey::try_from_slice(self.exchange_keypair.0.private().as_ref())
-            .map_err(|e| Error::Crypto("get the exchange_key from keypair", e))
     }
 }
 

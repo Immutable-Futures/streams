@@ -2,15 +2,18 @@
 use std::env;
 
 // 3rd-party
+#[cfg(not(feature = "did"))]
 use rand::Rng;
 
 // IOTA
 
 // Streams
 use streams::{
-    transport::{bucket, Transport},
+    transport::Transport,
     Result, TransportMessage,
 };
+#[cfg(all(not(feature = "did"), feature = "bucket"))]
+use streams::transport::bucket;
 
 #[cfg(feature = "tangle-client")]
 use streams::transport::tangle;
@@ -42,6 +45,7 @@ async fn run_did_scenario<SR, T: GenericTransport<SR>>(transport: T) -> Result<(
     result
 }
 
+#[cfg(not(feature = "did"))]
 async fn run_lean_test<SR, T: GenericTransport<SR>>(transport: T, seed: &str) -> Result<()> {
     println!("## Running Lean State Test ##\n");
     let result = scenarios::lean::example(transport, seed).await;
@@ -52,6 +56,7 @@ async fn run_lean_test<SR, T: GenericTransport<SR>>(transport: T, seed: &str) ->
     result
 }
 
+#[cfg(not(feature = "did"))]
 async fn run_basic_scenario<SR, T: GenericTransport<SR>>(transport: T, seed: &str) -> Result<()> {
     println!("## Running single branch test with seed: {} ##\n", seed);
     let result = scenarios::basic::example(transport, seed).await;
@@ -62,6 +67,7 @@ async fn run_basic_scenario<SR, T: GenericTransport<SR>>(transport: T, seed: &st
     result
 }
 
+#[cfg(not(feature = "did"))]
 async fn run_filter_branch_test<SR, T: GenericTransport<SR>>(transport: T, seed: &str) -> Result<()> {
     println!("## Running filter test with seed: {} ##\n", seed);
     let result = scenarios::filter::example(transport, seed).await;
@@ -72,6 +78,7 @@ async fn run_filter_branch_test<SR, T: GenericTransport<SR>>(transport: T, seed:
     result
 }
 
+#[cfg(not(feature = "did"))]
 async fn main_pure() -> Result<()> {
     println!("\n");
     println!("###########################################");
@@ -111,11 +118,15 @@ async fn main_tangle_client() -> Result<()> {
         .await
         .unwrap_or_else(|e| panic!("error connecting Tangle client to '{}': {}", node_url, e));
 
-    run_basic_scenario(transport.clone(), &new_seed()).await?;
     #[cfg(feature = "did")]
     run_did_scenario(transport.clone()).await?;
-    run_lean_test(transport.clone(), &new_seed()).await?;
-    run_filter_branch_test(transport.clone(), &new_seed()).await?;
+    #[cfg(not(feature = "did"))]
+    {
+        run_basic_scenario(transport.clone(), &new_seed()).await?;
+        run_lean_test(transport.clone(), &new_seed()).await?;
+        run_filter_branch_test(transport.clone(), &new_seed()).await?;
+    }
+
     println!(
         "#####################################################{}",
         "#".repeat(node_url.len())
@@ -150,10 +161,14 @@ async fn main_utangle_client() -> Result<()> {
 
     let transport: utangle::Client = utangle::Client::new(&node_url);
 
-    run_basic_scenario(transport.clone(), &new_seed()).await?;
     #[cfg(feature = "did")]
     run_did_scenario(transport.clone()).await?;
-    run_lean_test(transport, &new_seed()).await?;
+    #[cfg(not(feature = "did"))]
+    {
+        run_basic_scenario(transport.clone(), &new_seed()).await?;
+        run_lean_test(transport, &new_seed()).await?;
+    }
+
     println!(
         "##########################################################{}",
         "#".repeat(node_url.len())
@@ -169,6 +184,7 @@ async fn main_utangle_client() -> Result<()> {
     Ok(())
 }
 
+#[cfg(not(feature = "did"))]
 fn new_seed() -> String {
     let alph9 = "ABCDEFGHIJKLMNOPQRSTUVWXYZ9";
     (0..10)
@@ -188,7 +204,10 @@ async fn main() -> Result<()> {
         Some("utangle") => main_utangle_client().await,
         #[cfg(feature = "tangle-client")]
         Some("tangle") => main_tangle_client().await,
-        Some("bucket") | None => main_pure().await,
+        #[cfg(not(feature = "did"))]
+        // Pure test only works when DID is not a feature
+        Some("bucket") => main_pure().await,
         Some(other) => panic!("Unexpected TRANSPORT '{}'", other),
+        None => panic!("No transport")
     }
 }

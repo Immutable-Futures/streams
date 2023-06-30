@@ -161,6 +161,11 @@ impl<T> User<T> {
         self.state.user_id.as_ref()
     }
 
+    /// Returns a mutable reference to the [User's](`User`) [`Identity`] if any.
+    fn identity_mut(&mut self) -> Option<&mut Identity> {
+        self.state.user_id.as_mut()
+    }
+
     /// Returns a reference to the [User's](`User`) [permission](`Permissioned`) for a given branch
     /// if any
     ///
@@ -480,13 +485,11 @@ impl<T> User<T> {
                 return Ok(Message::orphan(address, preparsed));
             }
         };
-        let user_ke_sk = &self
-            .identity()
-            .ok_or(Error::NoIdentity("Derive a secret key"))?
-            .ke_sk()
-            .map_err(|_| Error::NoSecretKey)?;
+        let user_id = self
+            .identity_mut()
+            .ok_or(Error::NoIdentity("Derive a secret key"))?;
 
-        let subscription = subscription::Unwrap::new(&mut linked_msg_spongos, user_ke_sk);
+        let subscription = subscription::Unwrap::new(&mut linked_msg_spongos, user_id);
         let (message, _spongos) = preparsed
             .unwrap(subscription)
             .await
@@ -497,10 +500,11 @@ impl<T> User<T> {
         // set of messages of the stream between all the subscribers and across stateless recovers
 
         // Store message content into stores
-        let subscriber_identifier = message.payload().content().subscriber_identifier();
-        self.add_subscriber(subscriber_identifier.clone());
+        let subscriber_identifier = message.payload().content().subscriber_identifier().clone();
+        let final_message = Message::from_lets_message(address, message);
+        self.add_subscriber(subscriber_identifier);
 
-        Ok(Message::from_lets_message(address, message))
+        Ok(final_message)
     }
 
     /// Processes a [`User`] unsubscription message, removing the subscriber [`Identifier`] from
@@ -581,10 +585,19 @@ impl<T> User<T> {
             .copied()
             .expect("a subscriber that has received an stream announcement must keep its spongos in store");
 
+        // Fetch stored subscribers first as we'll be passing mutable references into the message
+        // If a branch admin does not include a user in the keyload, any further messages sent by
+        // the user will not be received by the others, so remove them from the publisher pool
+        let stored_subscribers: Vec<(Permissioned<Identifier>, usize)> = self
+            .cursors_by_topic(&topic)?
+            .map(|(perm, cursor)| (perm.clone(), *cursor))
+            .collect();
+
+        let user_id = self.state.user_id.as_mut();
         // TODO: Remove Psk from Identity and Identifier, and manage it as a complementary permission
         let keyload = keyload::Unwrap::new(
             &mut announcement_spongos,
-            self.state.user_id.as_ref(),
+            user_id,
             author_identifier,
             &self.state.psk_store,
         );
@@ -596,14 +609,7 @@ impl<T> User<T> {
         // Store spongos
         self.state.spongos_store.insert(address.relative(), spongos);
 
-        let subscribers = message.payload().content().subscribers();
-
-        // If a branch admin does not include a user in the keyload, any further messages sent by
-        // the user will not be received by the others, so remove them from the publisher pool
-        let stored_subscribers: Vec<(Permissioned<Identifier>, usize)> = self
-            .cursors_by_topic(&topic)?
-            .map(|(perm, cursor)| (perm.clone(), *cursor))
-            .collect();
+        let subscribers = message.payload().content().subscribers().to_vec();
 
         for (perm, cursor) in stored_subscribers {
             if !(perm.identifier() == author_identifier
@@ -615,6 +621,9 @@ impl<T> User<T> {
             }
         }
 
+        // Have to make message before setting branch links due to immutable borrow in keyload::unwrap
+        let final_message = Message::from_lets_message(address, message);
+
         // Store message content into stores
         for subscriber in subscribers {
             if self.should_store_cursor(&topic, subscriber.as_ref()) {
@@ -624,8 +633,6 @@ impl<T> User<T> {
             }
         }
 
-        // Have to make message before setting branch links due to immutable borrow in keyload::unwrap
-        let final_message = Message::from_lets_message(address, message);
         // Update branch links
         self.set_latest_link(topic, address.relative());
         Ok(final_message)
@@ -868,7 +875,7 @@ where
 
         // Prepare HDF and PCF
         let header = HDF::new(message_types::ANNOUNCEMENT, ANN_MESSAGE_NUM, identifier.clone(), &topic);
-        let content = PCF::new_final_frame().with_content(announcement::Wrap::new(self.identity().unwrap(), &topic));
+        let content = PCF::new_final_frame().with_content(announcement::Wrap::new(self.identity_mut().unwrap(), &topic));
 
         // Wrap message
         let (transport_msg, spongos) = LetsMessage::new(header, content)
@@ -968,7 +975,7 @@ where
         .with_linked_msg_address(link_to);
         let content = PCF::new_final_frame().with_content(branch_announcement::Wrap::new(
             &mut linked_msg_spongos,
-            self.identity().unwrap(),
+            self.identity_mut().unwrap(),
             &topic,
         ));
 
@@ -1020,13 +1027,12 @@ where
             .stream_address()
             .ok_or(Error::Setup("before starting a new branch, the stream must be created"))?;
         // Confirm user has identity
-        let user_id = self.identity().ok_or(Error::NoIdentity("subscribe"))?;
-        let identifier = user_id.identifier();
+        let identifier = self.identifier().ok_or(Error::NoIdentity("subscribe"))?.clone();
         // Get base branch topic
-        let base_branch = &self.state.base_branch;
+        let base_branch = self.state.base_branch.clone();
         // Link message to channel announcement
         let link_to = stream_address.relative();
-        let rel_address = MsgId::gen(stream_address.base(), identifier, base_branch, SUB_MESSAGE_NUM);
+        let rel_address = MsgId::gen(stream_address.base(), &identifier, &base_branch, SUB_MESSAGE_NUM);
 
         // Prepare HDF and PCF
         // Spongos must be copied because wrapping mutates it
@@ -1037,26 +1043,25 @@ where
             .copied()
             .ok_or(Error::MessageMissing(link_to, "spongos store"))?;
         let unsubscribe_key = StdRng::from_entropy().gen();
-        let author_ke_pk = self
+        let mut author_identifier = self
             .state
             .author_identifier
             .as_ref()
-            .unwrap()
-            .ke_pk()
-            .await
-            .map_err(|_| Error::Setup("Failed to generate Public Key from author identifier"))?;
+            .ok_or(Error::Setup("failed to retrieve author identifier"))?
+            .clone();
 
+        let user_id = self.identity_mut().ok_or(Error::NoIdentity("subscribe"))?;
         let content = PCF::new_final_frame().with_content(subscription::Wrap::new(
             &mut linked_msg_spongos,
             unsubscribe_key,
             user_id,
-            &author_ke_pk,
+            &mut author_identifier,
         ));
         let header = HDF::new(
             message_types::SUBSCRIPTION,
             SUB_MESSAGE_NUM,
             identifier.clone(),
-            base_branch,
+            &base_branch,
         )
         .with_linked_msg_address(link_to);
 
@@ -1096,18 +1101,17 @@ where
             .stream_address()
             .ok_or(Error::Setup("before unsubscribing, the stream must be created"))?;
         // Confirm user has identity
-        let user_id = self.identity().ok_or(Error::NoIdentity("unsubscribe"))?;
-        let identifier = user_id.identifier().clone();
+        let identifier = self.identifier().ok_or(Error::NoIdentity("unsubscribe"))?.clone();
         // Get base branch topic
-        let base_branch = &self.state.base_branch;
+        let base_branch = self.state.base_branch.clone();
         // Link message to channel announcement
         let link_to = self
-            .get_latest_link(base_branch)
+            .get_latest_link(&base_branch)
             .ok_or_else(|| Error::TopicNotFound(base_branch.clone()))?;
 
         // Update own's cursor
-        let new_cursor = self.next_cursor(base_branch)?;
-        let rel_address = MsgId::gen(stream_address.base(), &identifier, base_branch, new_cursor);
+        let new_cursor = self.next_cursor(&base_branch)?;
+        let rel_address = MsgId::gen(stream_address.base(), &identifier, &base_branch, new_cursor);
 
         // Prepare HDF and PCF
         // Spongos must be copied because wrapping mutates it
@@ -1117,12 +1121,13 @@ where
             .get(&link_to)
             .copied()
             .ok_or(Error::MessageMissing(link_to, "spongos store"))?;
+        let user_id = self.identity_mut().ok_or(Error::NoIdentity("unsubscribe"))?;
         let content = PCF::new_final_frame().with_content(unsubscription::Wrap::new(&mut linked_msg_spongos, user_id));
         let header = HDF::new(
             message_types::UNSUBSCRIPTION,
             new_cursor,
             identifier.clone(),
-            base_branch,
+            &base_branch,
         )
         .with_linked_msg_address(link_to);
 
@@ -1148,7 +1153,7 @@ where
         let permission = Permissioned::Read(identifier);
         self.state
             .cursor_store
-            .insert_cursor(base_branch, permission, new_cursor);
+            .insert_cursor(&base_branch, permission, new_cursor);
         self.store_spongos(rel_address, spongos, link_to);
         Ok(SendResponse::new(message_address, send_response))
     }
@@ -1168,8 +1173,8 @@ where
         psk_ids: Psks,
     ) -> Result<SendResponse<TSR>>
     where
-        Subscribers: IntoIterator<Item = Permissioned<&'a Identifier>> + Clone,
-        Subscribers::IntoIter: ExactSizeIterator,
+        Subscribers: IntoIterator<Item = Permissioned<Identifier>> + Clone,
+        Subscribers::IntoIter: ExactSizeIterator + Clone + Send + Sync,
         Top: Into<Topic>,
         Psks: IntoIterator<Item = PskId>,
     {
@@ -1178,8 +1183,8 @@ where
             .stream_address()
             .ok_or(Error::Setup("before sending a keyload, the stream must be created"))?;
         // Confirm user has identity
-        let user_id = self.identity().ok_or(Error::NoIdentity("send keyload"))?;
-        let identifier = user_id.identifier().clone();
+        let user_id = self.identity_mut().ok_or(Error::NoIdentity("send keyload"))?;
+        let identifier = user_id.to_identifier();
         // Check Topic
         let topic = topic.into();
         // Check Permission
@@ -1210,11 +1215,15 @@ where
         let nonce = rng.gen();
         let psk_ids_with_psks = psk_ids
             .into_iter()
-            .map(|pskid| Ok((pskid, self.state.psk_store.get(&pskid).ok_or(Error::UnknownPsk(pskid))?)))
-            .collect::<Result<Vec<(_, _)>>>()?; // collect to handle possible error
+            .map(|pskid| {
+                let psk = self.state.psk_store.get(&pskid).ok_or(Error::UnknownPsk(pskid))?.clone();
+                Ok((pskid, psk))
+            })
+            .collect::<Result<Vec<(PskId, Psk)>>>()?; // collect to handle possible error
+        let user_id = self.identity_mut().ok_or(Error::NoIdentity("send keyload"))?;
         let content = PCF::new_final_frame().with_content(keyload::Wrap::new(
             &mut announcement_msg_spongos,
-            subscribers.clone().into_iter().collect::<Vec<_>>(),
+            subscribers.clone().into_iter(),
             &psk_ids_with_psks,
             encryption_key,
             nonce,
@@ -1243,10 +1252,10 @@ where
 
         // If message has been sent successfully, commit message to stores
         for subscriber in subscribers {
-            if self.should_store_cursor(&topic, subscriber) {
+            if self.should_store_cursor(&topic, subscriber.as_ref()) {
                 self.state
                     .cursor_store
-                    .insert_cursor(&topic, subscriber.into(), INIT_MESSAGE_NUM);
+                    .insert_cursor(&topic, subscriber, INIT_MESSAGE_NUM);
             }
         }
         self.state
@@ -1290,7 +1299,7 @@ where
         self.send_keyload(
             topic,
             // Alas, must collect to release the &self immutable borrow
-            subscribers.iter().map(Permissioned::as_ref),
+            subscribers,
             psks,
         )
         .await
@@ -1328,7 +1337,7 @@ where
         self.send_keyload(
             topic,
             // Alas, must collect to release the &self immutable borrow
-            subscribers.iter().map(Permissioned::as_ref),
+            subscribers,
             psks,
         )
         .await
@@ -1362,8 +1371,7 @@ where
         let stream_address = self.stream_address().ok_or(Error::Setup(
             "before sending a signed packet, the stream must be created",
         ))?;
-        let user_id = self.identity().ok_or(Error::NoIdentity("send signed packet"))?;
-        let identifier = user_id.identifier().clone();
+        let identifier = self.identifier().ok_or(Error::NoIdentity("send signed packet"))?.clone();
         // Check Topic
         let topic = topic.into();
         // Check Permission
@@ -1371,7 +1379,8 @@ where
             .state
             .cursor_store
             .get_permission(&topic, &identifier)
-            .ok_or(Error::NoCursor(topic.clone()))?;
+            .ok_or(Error::NoCursor(topic.clone()))?
+            .clone();
         if permission.is_readonly() {
             return Err(Error::WrongRole(
                 "ReadWrite",
@@ -1396,9 +1405,10 @@ where
             .copied()
             .ok_or(Error::MessageMissing(link_to, "spongos store"))?;
 
+        let user_id = self.identity_mut().ok_or(Error::NoIdentity("send signed packet"))?;
         let content = PCF::new_final_frame().with_content(signed_packet::Wrap::new(
             &mut linked_msg_spongos,
-            &(*user_id),
+            user_id,
             public_payload.as_ref(),
             masked_payload.as_ref(),
         ));

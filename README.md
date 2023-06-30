@@ -3,16 +3,16 @@
   <a href="https://wiki.iota.org/streams/welcome"><img src="streams.png"></a>
 </h1>
 
+<h3 align="center">!!! Attention: This is a continuation of the IOTA Streams library for use in the Digital MRV ecosystem, and is not fully compatible with existing stardust implementations with IOTA nodes</h2>
 <h2 align="center">A cryptographic framework for building secure messaging protocols</h2>
 
 <p align="center">
-    <a href="https://wiki.iota.org/streams/welcome" style="text-decoration:none;">
+
+<a href="https://wiki.iota.org/streams/welcome" style="text-decoration:none;">
     <img src="https://img.shields.io/badge/Documentation%20portal-blue.svg?style=for-the-badge"
          alt="Developer documentation portal">
       </p>
 <p align="center">
-	<a href="https://discord.iota.org/" style="text-decoration:none;"><img src="https://img.shields.io/badge/Discord-9cf.svg?logo=discord" alt="Discord"></a>
-    <a href="https://iota.stackexchange.com/" style="text-decoration:none;"><img src="https://img.shields.io/badge/StackExchange-9cf.svg?logo=stackexchange" alt="StackExchange"></a>
     <a href="https://raw.githubusercontent.com/iotaledger/streams/master/LICENSE" style="text-decoration:none;"><img src="https://img.shields.io/badge/license-Apache%202.0-green.svg" alt="Apache 2.0 license"></a>
 </p>
 
@@ -23,30 +23,20 @@
   <a href="#getting-started">Getting started</a> ◈
   <a href="#api-reference">API reference</a> ◈
   <a href="#examples">Examples</a> ◈
-  <a href="#supporting-the-project">Supporting the project</a> ◈
-  <a href="#joining-the-discussion">Joining the discussion</a> 
+  <a href="#supporting-the-project">Supporting the project</a> 
 </p>
 
 ---
 
 ## About
 
-IOTA Streams is a **work-in-progress** framework for building cryptographic messaging protocols. Streams ships with a built-in protocol called Channels for sending authenticated messages between two or more parties on the Tangle.
-
-As a framework, Streams allows developers to build protocols for their specific needs.
-
-This process will be documented as the development progresses. However, since this crate is in an alpha stage of development it is still likely to change.
-
-***NOTE: Links and Documentation for the below crates will be updated to reflect changes with refactoring currently in progress once refactoring is complete.***
+Streams is a **work-in-progress** framework for building cryptographic messaging protocols. Streams ships with a built-in protocol for sending authenticated messages between two or more parties on a DAG network (like the IOTA Tangle).
 
 At the moment, IOTA Streams includes the following crates:
-* [Channels Application](iota-streams-app-channels/README.md) featuring Channels Application.
-* [Core layers](iota-streams-core/README.md) featuring spongos automaton for sponge-based authenticated encryption, pre-shared keys, pseudo-random generator;
-* [Keccak for core layers](iota-streams-core-keccak/README.md) featuring Keccak-F[1600] as spongos transform;
-* [Curve25519 asymmetric crypto](iota-streams-core-edsig/README.md) featuring Ed25519 signature and X25519 key exchange;
-* [DDML](iota-streams-ddml/README.md) featuring data definition and manipulation language for protocol messages;
-* [Application layer](iota-streams-app/README.md) common Application definitions.
-* [Bindings](bindings/c/README.md).
+* [Application Logic](streams/README.md) featuring User and high level messaging logic.
+* [Spongos](spongos/README.md) featuring data definition and manipulation language for protocol messages;
+* [LETS](lets/README.md) featuring the building blocks for application logic, including low level messaging logic.
+* [C Bindings](bindings/c/README.md).
 
 ## Prerequisites
 To use IOTA Streams, you need the following:
@@ -66,7 +56,8 @@ To use the library in your crate you need to add it as a dependency in the `Carg
 
 Because the library is not on [crates.io](https://crates.io/), you need to use the Git repository either remotely or locally.
 
-`no_std` is currently supported. However cargo nightly must be used to build with `no_std` feature.
+`no_std` is currently supported for standard seed based Users, but not if the `did` feature is enabled.
+Cargo nightly must be used to build with `no_std` feature.
 
 ## Getting started
 
@@ -80,7 +71,7 @@ Add the following to your `Cargo.toml` file:
 ```bash
 [dependencies]
 anyhow = { version = "1.0", default-features = false }
-iota-streams = { git = "https://github.com/iotaledger/streams", branch  = "develop"}
+iota-streams = { git = "https://github.com/Immutable-Futures/streams", branch  = "develop"}
 ```
 
 **Local**
@@ -95,34 +86,38 @@ iota-streams = { git = "https://github.com/iotaledger/streams", branch  = "devel
 
     ```bash
     [dependencies]
-    iota-streams = { version = "0.1.2", path = "../streams" }
+    iota-streams = { version = "0.2.1", path = "../streams" }
     ```
 
 ## Getting started
 
 After you've [installed the library](#installation), you can use it in your own Cargo project.
 
-For example, you may want to use the Channels protocol to create a new author and subscriber like so:
-
+For example, you may want to use the application protocol to create a new user like so:
 ```
-use iota_streams::app_channels::api::tangle::{Author, Subscriber};
-use iota_streams::app::transport::tangle::PAYLOAD_BYTES;
-use iota_streams::app::transport::tangle::client::Client;
+use streams::{
+    transport::utangle,
+    id::Ed25519,
+    User
+};
 
-fn main() {
-    let node = "http://localhost:14265";
-    let client = Client::new_from_url(node);
+#[tokio::main] 
+async fn main() {
+   let node = "http://localhost:14265";
+   let transport = utangle::Client::new(node);
+   let mut author = User::builder()
+     .with_identity(Ed25519::from_seed("A cryptographically secure seed"))
+     .with_transport(transport)
+     .build();
 
-    let encoding = "utf-8";
-    let multi_branching_flag = true;
-
-    let mut author = Author::new("AUTHORSSEED", encoding, PAYLOAD_BYTES, multi_branching_flag, client);
-    
-    let mut subscriber = Subscriber::new("MYSUBSCRIBERSECRETSTRING", encoding, PAYLOAD_BYTES, client);
+   // A new stream, or branch within a stream will require a Topic label
+   let topic = "BASE_BRANCH"
+   let announcement = author.create_stream(topic).await?;
 }
 ```
 
- For a more detailed guide, go to our [documentation portal](https://wiki.iota.org/streams/welcome).
+For a more detailed guide, go to the legacy IOTA [documentation portal](https://wiki.iota.org/streams/welcome).
+Currently, this guide is parity with the current functionality. A future portal is in the works.  
 
 ## API reference
 
@@ -134,9 +129,16 @@ cargo doc --open
 
 ## Examples
 
-We have an example in the [`examples` directory](examples/src/main.rs), which you can use as a reference when developing your own protocols with IOTA Streams.
+We have several examples in the [`examples` directory](streams/examples/full-example/scenarios), which you can use as a reference when developing your own protocols with IOTA Streams.
 
-A `no_std` version can be found in [`iota-streams-app-channels-example` directory](iota-streams-app-channels-example/src/main.rs)
+You can run the examples yourself on a local bucket test instance by running:
+```
+cargo run --example full-example --features="bucket" 
+```
+
+If you would like to run them using an existing node, you can do so by copying the [`example.env`](streams/examples/full-example/example.env) file
+and updating the `URL` variable to the appropriate node url, and changing the `TRANSPORT` variable to `utangle`. Run the above command in 
+`--release` mode.
 
 ## Supporting the project
 
@@ -153,7 +155,3 @@ cargo test --all
 ### Updating documentation
 
 If you want to improve the code comments, please do so according to the guidelines in [RFC 1574](https://github.com/rust-lang/rfcs/blob/master/text/1574-more-api-documentation-conventions.md#appendix-a-full-conventions-text).
-
-## Joining the discussion
-
-If you want to get involved in discussions about this technology, or you're looking for support, go to the #streams-discussion channel on [Discord](https://discord.iota.org/).
