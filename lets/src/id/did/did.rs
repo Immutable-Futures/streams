@@ -32,7 +32,7 @@ pub(crate) async fn resolve_document(url_info: &DIDUrlInfo) -> Result<IotaDocume
         .with_primary_node(url_info.client_url(), None)
         .map_err(|e| Error::did("DIDClient set primary node", e))?
         .finish()
-        .map_err(|e| Error::did("build DID Client", e))?
+        .map_err(|e| Error::did("build DID Client", e))?;
     let doc = client.resolve_did(&did_url)
         .await
         .map_err(|e| Error::did("read DID document", e))?;
@@ -68,7 +68,7 @@ impl DID {
     }
 
     /// Returns a mutable reference to the [`DIDInfo`] if present
-    fn info_mut(&mut self) -> &mut DIDInfo {
+    pub(crate) fn info_mut(&mut self) -> &mut DIDInfo {
         match self {
             Self::PrivateKey(did_info) => did_info,
             Self::Default => unreachable!(),
