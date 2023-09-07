@@ -117,7 +117,7 @@ async fn main() {
 ```
 
 For a more detailed guide, go to the legacy IOTA [documentation portal](https://wiki.iota.org/streams/welcome).
-Currently, this guide is parity with the current functionality. A future portal is in the works.  
+Currently, this guide is parity with the current functionality. A future portal is in the works.
 
 ## API reference
 
@@ -137,7 +137,7 @@ cargo run --example full-example --features="bucket"
 ```
 
 If you would like to run them using an existing node, you can do so by copying the [`example.env`](streams/examples/full-example/example.env) file
-and updating the `URL` variable to the appropriate node url, and changing the `TRANSPORT` variable to `utangle`. Run the above command in 
+and updating the `URL` variable to the appropriate node url, and changing the `TRANSPORT` variable to `utangle`. Run the above command in
 `--release` mode.
 
 ## Supporting the project
