@@ -6,8 +6,11 @@ use crate::{
 };
 use alloc::{boxed::Box, vec::Vec};
 use async_trait::async_trait;
+use futures::FutureExt;
 use serde::__private::PhantomData;
 use sqlx::mysql::MySqlPool;
+#[cfg(feature = "did")]
+use crate::id::{Ed25519Pub, Ed25519Sig, Identifier};
 
 pub struct Client<StreamsMessage = TransportMessage, DbMessage = SqlMessage>(
     MySqlPool,
@@ -67,6 +70,7 @@ where
     type Msg = StreamsMessage;
     type SendResponse = DbMessage;
 
+    #[cfg(not(feature = "did"))]
     async fn send_message(&mut self, address: Address, msg: StreamsMessage) -> Result<Self::SendResponse>
     where
         StreamsMessage: 'async_trait,
@@ -76,11 +80,37 @@ where
         Ok(db_msg.into())
     }
 
+    /// This function stands as a DON alternative for sending that includes the public key and
+    /// verifiable signature of the message for inclusion as a Data message within the network
+    /// Signatures are conducted using ED25519 keys so the method uses that as a baseline assumption
+    /// for sending and retrieval.
+    /// TODO: Make this function more ubiquitous for use in other protocols, or with other signature formats
+    #[cfg(feature = "did")]
+    async fn send_message(&mut self, address: Address, msg: StreamsMessage, public_key: Ed25519Pub, signature: Ed25519Sig) -> Result<Self::SendResponse>
+        where
+            StreamsMessage: 'async_trait,
+    {
+        let db_msg = msg.into()
+            .with_address(address)
+            .with_public_key(public_key)
+            .with_signature(signature);
+        self.insert_message(db_msg.clone()).await?;
+        Ok(db_msg.into())
+    }
+
     async fn recv_messages(&mut self, address: Address) -> Result<Vec<Self::Msg>>
     where
         StreamsMessage: 'async_trait,
     {
         let msg = self.retrieve_message(address).await?;
+        #[cfg(feature = "did")]
+        {
+            println!("Verifying message");
+            let mut bytes = [0u8;32];
+            bytes.clone_from_slice(&msg.public_key);
+            let pk = Ed25519Pub::try_from_bytes(bytes)?;
+            pk.verify(&Ed25519Sig::from_bytes(msg.signature), &msg.raw_content)?;
+        }
         Ok(vec![msg.into()])
     }
 }
@@ -90,6 +120,10 @@ pub struct SqlMessage {
     msg_id: Vec<u8>,
     raw_content: Vec<u8>,
     timestamp: chrono::DateTime<chrono::Utc>,
+    #[cfg(feature = "did")]
+    public_key: [u8;32],
+    #[cfg(feature = "did")]
+    signature: [u8;64],
 }
 
 impl SqlMessage {
@@ -112,6 +146,19 @@ impl SqlMessage {
         self.msg_id.extend_from_slice(address.relative().as_bytes());
         self
     }
+
+    #[cfg(feature = "did")]
+    fn with_public_key(mut self, public_key: Ed25519Pub) -> Self {
+        self.public_key = public_key.to_bytes();
+        self
+    }
+
+    #[cfg(feature = "did")]
+    fn with_signature(mut self, signature: Ed25519Sig) -> Self {
+        self.signature = signature.into();
+        self
+    }
+
 }
 
 impl AsRef<[u8]> for SqlMessage {

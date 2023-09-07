@@ -54,6 +54,7 @@ use crate::{
     id::identifier::Identifier,
     message::{ContentDecrypt, ContentSign, ContentSignSizeof},
 };
+use crate::id::ed25519::Ed25519Sig;
 
 /// Wrapper around [`Identifier`], specifying which type of [`Identity`] is being used. An
 /// [`Identity`] is the foundation of message sending and verification.
@@ -161,6 +162,45 @@ impl IdentityKind {
             Self::Ed25519(ed25519) => ed25519.inner().public_key().into(),
             #[cfg(feature = "did")]
             Self::DID(did) => Identifier::DID(did.info().url_info().clone()),
+        }
+    }
+
+    // TODO: Make this a non contextual based function for signature usage in wrapping
+    #[cfg(feature = "did")]
+    pub async fn sign_data(&mut self, data: &[u8]) -> crate::error::Result<Ed25519Sig> {
+        match self {
+            IdentityKind::DID(info) => {
+                let url_info = info.info_mut().url_info_mut();
+                let did_url = url_info.did().to_string();
+                let fragment = url_info.signing_fragment().to_string();
+                // Check to see if there is a stronghold stored first to avoid unnecessary
+                // processing
+                let stronghold = url_info.stronghold()
+                    .map_err(|e| SpongosError::Context("fetching stronghold adaptor", e.to_string()))?;
+
+                // Join the DID identifier with the key fragment of the verification method
+                let fragment = if !fragment.starts_with("#") {
+                    format!("#{fragment}")
+                } else {
+                    fragment
+                };
+                let method = IotaDID::parse(did_url)
+                    .map_err(|e| SpongosError::Context("ContentSign", Error::did("did parse", e).to_string()))?
+                    .join(&fragment)
+                    .map_err(|e| {
+                        SpongosError::Context("ContentSign", Error::did("join did fragments", e).to_string())
+                    })?;
+
+                // update stronghold snapshot
+                let _ = stronghold.read_stronghold_snapshot().await;
+
+                let location = Location::generic(STREAMS_VAULT, method.to_string().as_bytes());
+                let sig = stronghold.ed25519_sign(location, &data).await
+                    .map_err(|e| SpongosError::Context("signing hash", e.to_string()))?;
+                Ok(Ed25519Sig::from_bytes(sig))
+            },
+            #[cfg(not(feature = "did"))]
+            IdentityKind::Ed25519(_) => unimplemented!()
         }
     }
 }

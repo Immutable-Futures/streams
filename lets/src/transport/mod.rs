@@ -13,6 +13,8 @@ use crate::{
     address::Address,
     error::{Error, Result},
 };
+#[cfg(feature = "did")]
+use crate::id::{Ed25519Pub, Ed25519Sig, Identifier};
 
 /// Network transport abstraction.
 /// Parametrized by the type of message addresss.
@@ -22,9 +24,14 @@ pub trait Transport<'a> {
     type Msg;
     type SendResponse;
     /// Send a message
+    #[cfg(not(feature = "did"))]
     async fn send_message(&mut self, address: Address, msg: Self::Msg) -> Result<Self::SendResponse>
     where
         'a: 'async_trait;
+    #[cfg(feature = "did")]
+    async fn send_message(&mut self, address: Address, msg: Self::Msg, public_key: Ed25519Pub, signature: Ed25519Sig) -> Result<Self::SendResponse>
+        where
+            'a: 'async_trait;
 
     /// Receive messages
     async fn recv_messages(&mut self, address: Address) -> Result<Vec<Self::Msg>>

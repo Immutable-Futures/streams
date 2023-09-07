@@ -6,7 +6,6 @@ use async_trait::async_trait;
 
 // IOTA
 use crypto::keys::x25519;
-#[cfg(not(feature = "did"))]
 use crypto::signatures::ed25519;
 #[cfg(not(feature = "did"))]
 use crate::id::Ed25519Pub;
@@ -79,6 +78,37 @@ impl Identifier {
             Identifier::Ed25519(public_key) => public_key.as_slice(),
             #[cfg(feature = "did")]
             Identifier::DID(url_info) => url_info.as_ref(),
+        }
+    }
+
+    pub async fn sig_pk(&self) -> Result<ed25519::PublicKey> {
+        match self {
+            #[cfg(not(feature = "did"))]
+            Identifier::Ed25519(pk) => Ok(pk.clone()),
+            #[cfg(feature = "did")]
+            Identifier::DID(url_info) => {
+                let doc = resolve_document(url_info).await?;
+                match doc.resolve_method(url_info.signing_fragment(), None) {
+                    Some(sig) => {
+                        let mut bytes = [0u8; 32];
+                        bytes.clone_from_slice(
+                            &sig.data()
+                                .try_decode()
+                                .map_err(|e| Error::did("try_decode", e))?
+                        );
+                        Ok(ed25519::PublicKey::try_from_bytes(bytes)
+                            .map_err(|e| Error::Crypto("create the public key from slice", e))?
+                        )
+                    }
+                    None => Err(Error::did(
+                        "get public key from signing fragment",
+                        alloc::format!(
+                            "DID Method fragment {} could not be resolved",
+                            url_info.signing_fragment()
+                        ),
+                    )),
+                }
+            }
         }
     }
 

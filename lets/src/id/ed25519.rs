@@ -11,8 +11,11 @@ use spongos::{KeccakF1600, SpongosRng};
 
 // Local
 
-// Public
+/// Wrapper for [`ed25519::PublicKey`]
 pub type Ed25519Pub = ed25519::PublicKey;
+//TODO: Convert all signature references in DDML to wrapper
+/// Wrapper for [`ed25519::Signature`]
+pub type Ed25519Sig = ed25519::Signature;
 
 /// Wrapper for [`ed25519::SecretKey`]
 pub struct Ed25519(ed25519::SecretKey);

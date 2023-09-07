@@ -25,6 +25,8 @@ use crate::{
     message::TransportMessage,
     transport::Transport,
 };
+#[cfg(feature = "did")]
+use crate::id::{Ed25519Pub, Ed25519Sig, IdentityKind};
 
 const NONCE_SIZE: usize = core::mem::size_of::<u64>();
 // Precomputed natural logarithm of 3 for performance reasons.
@@ -34,7 +36,7 @@ const LN_3: f64 = 1.098_612_288_668_109;
 /// A [`Transport`] Client for sending and retrieving binary messages from an `IOTA Tangle` node.
 /// This Client uses a lightweight [reqwest](`reqwest::Client`) Client implementation.
 #[derive(Debug, Clone)]
-pub struct Client<Message = TransportMessage, SendResponse = Ignored> {
+pub struct Client<Message = TransportMessage, SendResponse = SentMessageResponse> {
     /// Node endpoint URL
     node_url: String,
     /// HTTP Client
@@ -109,6 +111,33 @@ where
     /// # Arguments
     /// * `address`: The address of the message.
     /// * `msg`: Message - The message to send.
+    #[cfg(feature = "did")]
+    async fn send_message(&mut self, address: Address, msg: Message, public_key: Ed25519Pub, signature: Ed25519Sig) -> Result<SendResponse>
+    where
+        Message: 'async_trait + Send,
+    {
+        let network_info = self.get_network_info().await?;
+        let tips = self.get_tips().await?;
+
+        let mut block = Block::new(tips, address.to_msg_index().to_vec(), msg.as_ref().to_vec(), public_key.as_slice().to_vec(), signature.to_bytes().to_vec());
+        let message_bytes = serde_json::to_vec(&block)?;
+        block.set_nonce(nonce(&message_bytes, network_info.protocol.min_pow_score as f64)?);
+
+        let path = "api/core/v2/blocks";
+
+        let response: SendResponse = self
+            .client
+            .post(format!("{}/{}", self.node_url, path))
+            .header("Content-Type", "application/json")
+            .body(message_bytes)
+            .send()
+            .await?
+            .json()
+            .await?;
+        Ok(response)
+    }
+
+    #[cfg(not(feature = "did"))]
     async fn send_message(&mut self, address: Address, msg: Message) -> Result<SendResponse>
     where
         Message: 'async_trait + Send,
@@ -116,7 +145,7 @@ where
         let network_info = self.get_network_info().await?;
         let tips = self.get_tips().await?;
 
-        let mut block = Block::new(tips, address.to_msg_index().to_vec(), msg.as_ref().to_vec());
+        let mut block = Block::new(tips, address.to_msg_index().to_vec(), msg.as_ref().to_vec(), vec![], vec![]);
         let message_bytes = serde_json::to_vec(&block)?;
         block.set_nonce(nonce(&message_bytes, network_info.protocol.min_pow_score as f64)?);
 
@@ -219,11 +248,11 @@ pub struct Block {
 }
 
 impl Block {
-    fn new(tips: Tips, tag: Vec<u8>, data: Vec<u8>) -> Block {
+    fn new(tips: Tips, tag: Vec<u8>, data: Vec<u8>, public_key: Vec<u8>, signature: Vec<u8>) -> Block {
         Block {
             protocol_version: 2_u8,
             parents: tips.tips,
-            payload: TaggedPayload::new(tag, data),
+            payload: TaggedPayload::new(tag, data, public_key, signature),
             nonce: String::new(),
         }
     }
@@ -240,14 +269,19 @@ struct TaggedPayload {
     kind: u8,
     tag: String,
     data: String,
+    #[serde(rename = "publicKey")]
+    pub_key: String,
+    signature: String,
 }
 
 impl TaggedPayload {
-    fn new(tag: Vec<u8>, data: Vec<u8>) -> TaggedPayload {
+    fn new(tag: Vec<u8>, data: Vec<u8>, pk: Vec<u8>, sig: Vec<u8>) -> TaggedPayload {
         TaggedPayload {
             kind: 5_u8,
             tag: prefix_hex::encode(tag),
             data: prefix_hex::encode(data),
+            pub_key: prefix_hex::encode(pk),
+            signature: prefix_hex::encode(sig),
         }
     }
 }
@@ -256,7 +290,10 @@ impl TaggedPayload {
 struct BlockResponse(Vec<Block>);
 
 #[derive(Clone, Deserialize)]
-pub struct Ignored {}
+pub struct SentMessageResponse {
+    #[serde(rename = "blockId")]
+    pub block_id: String
+}
 
 impl TryFrom<Block> for TransportMessage {
     type Error = crate::error::Error;

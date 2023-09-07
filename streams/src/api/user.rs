@@ -888,11 +888,7 @@ where
             return Err(Error::Setup("Cannot create a channel, announce address already in use"));
         }
 
-        let send_response = self
-            .transport
-            .send_message(stream_address, transport_msg)
-            .await
-            .map_err(|e| Error::Transport(stream_address, "send announce message", e))?;
+        let send_response = self.send_message(stream_address, transport_msg).await?;
 
         // If a message has been sent successfully, insert the base branch into store
         self.state.cursor_store.new_branch(topic.clone());
@@ -989,11 +985,7 @@ where
             return Err(Error::AddressUsed("new branch", address));
         }
 
-        let send_response = self
-            .transport
-            .send_message(address, transport_msg)
-            .await
-            .map_err(|e| Error::Transport(stream_address, "send new branch message", e))?;
+        let send_response = self.send_message(address, transport_msg).await?;
 
         // If message has been sent successfully, create the new branch in store
         self.state.cursor_store.new_branch(topic.clone());
@@ -1080,11 +1072,7 @@ where
             return Err(Error::AddressUsed("subscribe", message_address));
         }
 
-        let send_response = self
-            .transport
-            .send_message(message_address, transport_msg)
-            .await
-            .map_err(|e| Error::Transport(message_address, "send subscribe message", e))?;
+        let send_response = self.send_message(message_address, transport_msg).await?;
 
         // If message has been sent successfully, commit message to stores
         // - Subscription messages are not stored in the cursor store
@@ -1143,11 +1131,7 @@ where
             return Err(Error::AddressUsed("unsubscribe", message_address));
         }
 
-        let send_response = self
-            .transport
-            .send_message(message_address, transport_msg)
-            .await
-            .map_err(|e| Error::Transport(stream_address, "send unsubscribe message", e))?;
+        let send_response = self.send_message(message_address, transport_msg).await?;
 
         // If message has been sent successfully, commit message to stores
         let permission = Permissioned::Read(identifier);
@@ -1244,11 +1228,7 @@ where
             return Err(Error::AddressUsed("keyload", message_address));
         }
 
-        let send_response = self
-            .transport
-            .send_message(message_address, transport_msg)
-            .await
-            .map_err(|e| Error::Transport(stream_address, "send keyload message", e))?;
+        let send_response = self.send_message(message_address, transport_msg).await?;
 
         // If message has been sent successfully, commit message to stores
         for subscriber in subscribers {
@@ -1426,11 +1406,7 @@ where
         if !self.transport.recv_message(message_address).await.is_err() {
             return Err(Error::AddressUsed("signed packet", message_address));
         }
-        let send_response = self
-            .transport
-            .send_message(message_address, transport_msg)
-            .await
-            .map_err(|e| Error::Transport(stream_address, "send signed packet", e))?;
+        let send_response = self.send_message(message_address, transport_msg).await?;
 
         // If message has been sent successfully, commit message to stores
         self.state
@@ -1473,7 +1449,8 @@ where
             .state
             .cursor_store
             .get_permission(&topic, &identifier)
-            .ok_or(Error::NoCursor(topic.clone()))?;
+            .ok_or(Error::NoCursor(topic.clone()))?
+            .clone();
         if permission.is_readonly() {
             return Err(Error::WrongRole(
                 "ReadWrite",
@@ -1517,20 +1494,45 @@ where
         if !self.transport.recv_message(message_address).await.is_err() {
             return Err(Error::AddressUsed("tagged packet", message_address));
         }
-        let send_response = self
-            .transport
-            .send_message(message_address, transport_msg)
-            .await
-            .map_err(|e| Error::Transport(stream_address, "send tagged packet", e))?;
+        let send_response = self.send_message(message_address, transport_msg).await?;
 
         // If message has been sent successfully, commit message to stores
         self.state
             .cursor_store
-            .insert_cursor(&topic, permission.clone(), new_cursor);
+            .insert_cursor(&topic, permission, new_cursor);
         self.store_spongos(rel_address, spongos, link_to);
         // Update Branch Links
         self.set_latest_link(topic, rel_address);
         Ok(SendResponse::new(message_address, send_response))
+    }
+
+    async fn send_message(&mut self, address: Address, msg: TransportMessage) -> Result<TSR> {
+        #[cfg(not(feature = "did"))]
+        {
+            self.transport
+                .send_message(address, msg)
+                .await
+                .map_err(|e| Error::Transport(address, "send announce message", e))
+        }
+        #[cfg(feature = "did")]
+        {
+            let mut identity = self.identity_mut()
+                .ok_or(Error::NoIdentity("send messages"))?;
+            //TODO: store pubkey in user instance for easy retrieval
+            let sig = identity.sign_data(msg.as_ref()).await
+                .map_err(|e| Error::Transport(address, "send message", e))?;
+            let pub_key = identity.identifier().sig_pk().await
+                .map_err(|e| Error::Transport(address, "send message", e))?;
+            self.transport
+                .send_message(
+                    address,
+                    msg,
+                    pub_key,
+                    sig
+                )
+                .await
+                .map_err(|e| Error::Transport(address, "send announce message", e))
+        }
     }
 }
 

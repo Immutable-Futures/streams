@@ -1,5 +1,4 @@
 /// Ed25519 functions and types
-#[cfg(not(feature = "did"))]
 mod ed25519;
 /// User Identifier functions and types
 mod identifier;
@@ -9,8 +8,7 @@ mod permission;
 mod psk;
 
 pub use self::identity::{Identity, IdentityKind};
-#[cfg(not(feature = "did"))]
-pub use ed25519::{Ed25519, Ed25519Pub};
+pub use ed25519::{Ed25519, Ed25519Pub, Ed25519Sig};
 pub use identifier::Identifier;
 pub use permission::{PermissionDuration, Permissioned};
 pub use psk::{Psk, PskId};
