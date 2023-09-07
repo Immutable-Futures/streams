@@ -4,7 +4,9 @@ use core::hash::Hash;
 // 3rd-party
 
 // IOTA
-use crypto::{keys::x25519, signatures::ed25519};
+#[cfg(not(feature = "did"))]
+use crypto::keys::x25519;
+use crypto::signatures::ed25519;
 
 // Streams
 use spongos::{KeccakF1600, SpongosRng};
@@ -13,7 +15,7 @@ use spongos::{KeccakF1600, SpongosRng};
 
 /// Wrapper for [`ed25519::PublicKey`]
 pub type Ed25519Pub = ed25519::PublicKey;
-//TODO: Convert all signature references in DDML to wrapper
+// TODO: Convert all signature references in DDML to wrapper
 /// Wrapper for [`ed25519::Signature`]
 pub type Ed25519Sig = ed25519::Signature;
 
@@ -42,7 +44,10 @@ impl Ed25519 {
             seed,
         )))
     }
+}
 
+#[cfg(not(feature = "did"))]
+impl Ed25519 {
     /// Returns a reference to the inner [`ed25519::SecretKey`]
     pub(crate) fn inner(&self) -> &ed25519::SecretKey {
         &self.0

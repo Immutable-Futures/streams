@@ -106,7 +106,8 @@ impl Address {
     /// Hash the content of the [`Address`] using `Blake2b256`
     pub fn to_blake2b(self) -> [u8; 32] {
         let hasher = Blake2b256::new();
-        hasher.chain_update(self.base())
+        hasher
+            .chain_update(self.base())
             .chain_update(self.relative())
             .finalize()
             .into()

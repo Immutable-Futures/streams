@@ -1,3 +1,5 @@
+#[cfg(feature = "did")]
+use crate::id::{Ed25519Pub, Ed25519Sig, Identifier};
 use crate::{
     address::Address,
     error::{Error, Result},
@@ -9,8 +11,6 @@ use async_trait::async_trait;
 use futures::FutureExt;
 use serde::__private::PhantomData;
 use sqlx::mysql::MySqlPool;
-#[cfg(feature = "did")]
-use crate::id::{Ed25519Pub, Ed25519Sig, Identifier};
 
 pub struct Client<StreamsMessage = TransportMessage, DbMessage = SqlMessage>(
     MySqlPool,
@@ -84,13 +84,21 @@ where
     /// verifiable signature of the message for inclusion as a Data message within the network
     /// Signatures are conducted using ED25519 keys so the method uses that as a baseline assumption
     /// for sending and retrieval.
-    /// TODO: Make this function more ubiquitous for use in other protocols, or with other signature formats
+    /// TODO: Make this function more ubiquitous for use in other protocols, or with other signature
+    /// formats
     #[cfg(feature = "did")]
-    async fn send_message(&mut self, address: Address, msg: StreamsMessage, public_key: Ed25519Pub, signature: Ed25519Sig) -> Result<Self::SendResponse>
-        where
-            StreamsMessage: 'async_trait,
+    async fn send_message(
+        &mut self,
+        address: Address,
+        msg: StreamsMessage,
+        public_key: Ed25519Pub,
+        signature: Ed25519Sig,
+    ) -> Result<Self::SendResponse>
+    where
+        StreamsMessage: 'async_trait,
     {
-        let db_msg = msg.into()
+        let db_msg = msg
+            .into()
             .with_address(address)
             .with_public_key(public_key)
             .with_signature(signature);
@@ -106,7 +114,7 @@ where
         #[cfg(feature = "did")]
         {
             println!("Verifying message");
-            let mut bytes = [0u8;32];
+            let mut bytes = [0u8; 32];
             bytes.clone_from_slice(&msg.public_key);
             let pk = Ed25519Pub::try_from_bytes(bytes)?;
             pk.verify(&Ed25519Sig::from_bytes(msg.signature), &msg.raw_content)?;
@@ -121,9 +129,9 @@ pub struct SqlMessage {
     raw_content: Vec<u8>,
     timestamp: chrono::DateTime<chrono::Utc>,
     #[cfg(feature = "did")]
-    public_key: [u8;32],
+    public_key: [u8; 32],
     #[cfg(feature = "did")]
-    signature: [u8;64],
+    signature: [u8; 64],
 }
 
 impl SqlMessage {
@@ -158,7 +166,6 @@ impl SqlMessage {
         self.signature = signature.into();
         self
     }
-
 }
 
 impl AsRef<[u8]> for SqlMessage {

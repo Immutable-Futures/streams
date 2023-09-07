@@ -5,15 +5,16 @@ use alloc::boxed::Box;
 use async_trait::async_trait;
 
 // IOTA
-use crypto::keys::x25519;
-use crypto::signatures::ed25519;
 #[cfg(not(feature = "did"))]
 use crate::id::Ed25519Pub;
+use crypto::{keys::x25519, signatures::ed25519};
 
 #[cfg(feature = "did")]
 use iota_stronghold::Location;
 
 // Streams
+#[cfg(not(feature = "did"))]
+use spongos::ddml::commands::{Ed25519, X25519};
 use spongos::{
     ddml::{
         commands::{sizeof, unwrap, wrap, Absorb, Commit, Mask, Squeeze},
@@ -24,8 +25,6 @@ use spongos::{
     error::{Error as SpongosError, Result as SpongosResult},
     PRP,
 };
-#[cfg(not(feature = "did"))]
-use spongos::ddml::commands::{Ed25519, X25519};
 
 // Local
 #[cfg(feature = "did")]
@@ -33,7 +32,7 @@ use crate::{
     alloc::string::ToString,
     error::Error,
     id::{
-        did::{resolve_document, get_exchange_method, DIDUrlInfo, DID_ENCRYPTED_DATA_SIZE, STREAMS_VAULT},
+        did::{get_exchange_method, resolve_document, DIDUrlInfo, DID_ENCRYPTED_DATA_SIZE, STREAMS_VAULT},
         IdentityKind,
     },
 };
@@ -91,14 +90,9 @@ impl Identifier {
                 match doc.resolve_method(url_info.signing_fragment(), None) {
                     Some(sig) => {
                         let mut bytes = [0u8; 32];
-                        bytes.clone_from_slice(
-                            &sig.data()
-                                .try_decode()
-                                .map_err(|e| Error::did("try_decode", e))?
-                        );
+                        bytes.clone_from_slice(&sig.data().try_decode().map_err(|e| Error::did("try_decode", e))?);
                         Ok(ed25519::PublicKey::try_from_bytes(bytes)
-                            .map_err(|e| Error::Crypto("create the public key from slice", e))?
-                        )
+                            .map_err(|e| Error::Crypto("create the public key from slice", e))?)
                     }
                     None => Err(Error::did(
                         "get public key from signing fragment",
@@ -347,9 +341,7 @@ impl ContentEncryptSizeOf<Identifier> for sizeof::Context {
                 self.x25519(&xkey, NBytes::new(_key))
             }
             #[cfg(feature = "did")]
-            Identifier::DID(_) => {
-                self.mask(NBytes::new([0;DID_ENCRYPTED_DATA_SIZE]))
-            }
+            Identifier::DID(_) => self.mask(NBytes::new([0; DID_ENCRYPTED_DATA_SIZE])),
         }
     }
 }
@@ -377,12 +369,17 @@ where
 #[cfg(feature = "did")]
 #[async_trait]
 impl<OS, F> ContentEncrypt<IdentityKind, Identifier> for wrap::Context<OS, F>
-    where
-        F: PRP,
-        OS: io::OStream,
+where
+    F: PRP,
+    OS: io::OStream,
 {
     #[cfg(feature = "did")]
-    async fn encrypt(&mut self, sender: &mut IdentityKind, recipient: &mut Identifier, key: &[u8]) -> SpongosResult<&mut Self> {
+    async fn encrypt(
+        &mut self,
+        sender: &mut IdentityKind,
+        recipient: &mut Identifier,
+        key: &[u8],
+    ) -> SpongosResult<&mut Self> {
         match recipient {
             Identifier::DID(ref mut url_info) => {
                 match sender {
@@ -397,9 +394,11 @@ impl<OS, F> ContentEncrypt<IdentityKind, Identifier> for wrap::Context<OS, F>
                             &receiver_method
                                 .data()
                                 .try_decode()
-                                .map_err(|e| SpongosError::Context("ContentEncrypt try_decode", e.to_string()))?
+                                .map_err(|e| SpongosError::Context("ContentEncrypt try_decode", e.to_string()))?,
                         )
-                            .map_err(|e| SpongosError::Context("ContentEncrypt x25519::PublicKey try_from_slice", e.to_string()))?;
+                        .map_err(|e| {
+                            SpongosError::Context("ContentEncrypt x25519::PublicKey try_from_slice", e.to_string())
+                        })?;
 
                         // Fetch stronghold instance
                         let stronghold = sender_info
@@ -409,7 +408,9 @@ impl<OS, F> ContentEncrypt<IdentityKind, Identifier> for wrap::Context<OS, F>
                             .map_err(|e| SpongosError::Context("encrypting key", e.to_string()))?;
 
                         // Create an AEAD Encryption packet to be received and processed by the recipient
-                        let encrypted_data = stronghold.x25519_encrypt(xkey, sender_location, key.to_vec()).await
+                        let encrypted_data = stronghold
+                            .x25519_encrypt(xkey, sender_location, key.to_vec())
+                            .await
                             .map_err(|e| SpongosError::Context("encrypting key", e.to_string()))?;
 
                         self.mask(NBytes::new(&encrypted_data.public_key))?

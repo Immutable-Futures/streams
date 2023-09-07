@@ -34,12 +34,16 @@ use async_trait::async_trait;
 // Streams
 use lets::{
     id::{Identifier, Identity},
-    message::{ContentSign, ContentSignSizeof, ContentSizeof, ContentUnwrap, ContentVerify, ContentWrap,
-              ContentEncrypt, ContentDecrypt, ContentEncryptSizeOf
+    message::{
+        ContentDecrypt, ContentEncrypt, ContentEncryptSizeOf, ContentSign, ContentSignSizeof, ContentSizeof,
+        ContentUnwrap, ContentVerify, ContentWrap,
     },
 };
 use spongos::{
-    ddml::{commands::{sizeof, unwrap, wrap, Join, Mask}, io},
+    ddml::{
+        commands::{sizeof, unwrap, wrap, Join, Mask},
+        io,
+    },
     error::Result,
     Spongos,
 };
@@ -98,10 +102,16 @@ where
 {
     async fn wrap(&mut self, subscription: &mut Wrap<'a>) -> Result<&mut Self> {
         let ctx = self.join(subscription.initial_state)?;
-            #[cfg(not(feature = "did"))]
-            ctx.encrypt(subscription.author_identifier, &subscription.unsubscribe_key).await?;
-            #[cfg(feature = "did")]
-            ctx.encrypt(subscription.subscriber_id.identity_kind(), subscription.author_identifier, &subscription.unsubscribe_key).await?;
+        #[cfg(not(feature = "did"))]
+        ctx.encrypt(subscription.author_identifier, &subscription.unsubscribe_key)
+            .await?;
+        #[cfg(feature = "did")]
+        ctx.encrypt(
+            subscription.subscriber_id.identity_kind(),
+            subscription.author_identifier,
+            &subscription.unsubscribe_key,
+        )
+        .await?;
         ctx.mask(subscription.subscriber_id.identifier())?
             .sign(subscription.subscriber_id)
             .await?;

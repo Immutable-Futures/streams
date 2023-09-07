@@ -2,8 +2,10 @@
 use core::hash::Hash;
 
 // IOTA
-use identity_iota::iota::{IotaDID, IotaDocument, IotaIdentityClientExt};
-use identity_iota::verification::VerificationMethod;
+use identity_iota::{
+    iota::{IotaDID, IotaDocument, IotaIdentityClientExt},
+    verification::VerificationMethod,
+};
 use iota_client::Client as DIDClient;
 
 // Streams
@@ -33,7 +35,8 @@ pub(crate) async fn resolve_document(url_info: &DIDUrlInfo) -> Result<IotaDocume
         .map_err(|e| Error::did("DIDClient set primary node", e))?
         .finish()
         .map_err(|e| Error::did("build DID Client", e))?;
-    let doc = client.resolve_did(&did_url)
+    let doc = client
+        .resolve_did(&did_url)
         .await
         .map_err(|e| Error::did("read DID document", e))?;
     Ok(doc)
@@ -45,7 +48,10 @@ pub(crate) async fn get_exchange_method(info: &DIDUrlInfo) -> SpongosResult<Veri
         .await
         .map_err(|e| SpongosError::Context("ContentEncrypt", e.to_string()))?;
     doc.resolve_method(&exchange_fragment, None)
-        .ok_or(SpongosError::Context("ContentEncrypt", "failed to resolve method".to_string()))
+        .ok_or(SpongosError::Context(
+            "ContentEncrypt",
+            "failed to resolve method".to_string(),
+        ))
         .map(|method| method.clone())
 }
 
@@ -127,9 +133,7 @@ impl DIDInfo {
     /// * `keypair`: DID KeyPair for signatures
     /// * `exchange_keypair`: DID KeyPair for key exchange
     pub fn new(url_info: DIDUrlInfo) -> Self {
-        Self {
-            url_info,
-        }
+        Self { url_info }
     }
 
     /// Returns a reference to the [`DIDUrlInfo`]

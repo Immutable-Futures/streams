@@ -8,12 +8,9 @@ use rand::Rng;
 // IOTA
 
 // Streams
-use streams::{
-    transport::Transport,
-    Result, TransportMessage,
-};
 #[cfg(all(not(feature = "did"), feature = "bucket"))]
 use streams::transport::bucket;
+use streams::{transport::Transport, Result, TransportMessage};
 
 #[cfg(feature = "tangle-client")]
 use streams::transport::tangle;
@@ -208,6 +205,6 @@ async fn main() -> Result<()> {
         // Pure test only works when DID is not a feature
         Some("bucket") => main_pure().await,
         Some(other) => panic!("Unexpected TRANSPORT '{}'", other),
-        None => panic!("No transport")
+        None => panic!("No transport"),
     }
 }

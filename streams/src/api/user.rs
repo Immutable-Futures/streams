@@ -485,9 +485,7 @@ impl<T> User<T> {
                 return Ok(Message::orphan(address, preparsed));
             }
         };
-        let user_id = self
-            .identity_mut()
-            .ok_or(Error::NoIdentity("Derive a secret key"))?;
+        let user_id = self.identity_mut().ok_or(Error::NoIdentity("Derive a secret key"))?;
 
         let subscription = subscription::Unwrap::new(&mut linked_msg_spongos, user_id);
         let (message, _spongos) = preparsed
@@ -875,7 +873,8 @@ where
 
         // Prepare HDF and PCF
         let header = HDF::new(message_types::ANNOUNCEMENT, ANN_MESSAGE_NUM, identifier.clone(), &topic);
-        let content = PCF::new_final_frame().with_content(announcement::Wrap::new(self.identity_mut().unwrap(), &topic));
+        let content =
+            PCF::new_final_frame().with_content(announcement::Wrap::new(self.identity_mut().unwrap(), &topic));
 
         // Wrap message
         let (transport_msg, spongos) = LetsMessage::new(header, content)
@@ -1200,7 +1199,12 @@ where
         let psk_ids_with_psks = psk_ids
             .into_iter()
             .map(|pskid| {
-                let psk = self.state.psk_store.get(&pskid).ok_or(Error::UnknownPsk(pskid))?.clone();
+                let psk = self
+                    .state
+                    .psk_store
+                    .get(&pskid)
+                    .ok_or(Error::UnknownPsk(pskid))?
+                    .clone();
                 Ok((pskid, psk))
             })
             .collect::<Result<Vec<(PskId, Psk)>>>()?; // collect to handle possible error
@@ -1351,7 +1355,10 @@ where
         let stream_address = self.stream_address().ok_or(Error::Setup(
             "before sending a signed packet, the stream must be created",
         ))?;
-        let identifier = self.identifier().ok_or(Error::NoIdentity("send signed packet"))?.clone();
+        let identifier = self
+            .identifier()
+            .ok_or(Error::NoIdentity("send signed packet"))?
+            .clone();
         // Check Topic
         let topic = topic.into();
         // Check Permission
@@ -1497,9 +1504,7 @@ where
         let send_response = self.send_message(message_address, transport_msg).await?;
 
         // If message has been sent successfully, commit message to stores
-        self.state
-            .cursor_store
-            .insert_cursor(&topic, permission, new_cursor);
+        self.state.cursor_store.insert_cursor(&topic, permission, new_cursor);
         self.store_spongos(rel_address, spongos, link_to);
         // Update Branch Links
         self.set_latest_link(topic, rel_address);
@@ -1516,20 +1521,19 @@ where
         }
         #[cfg(feature = "did")]
         {
-            let mut identity = self.identity_mut()
-                .ok_or(Error::NoIdentity("send messages"))?;
-            //TODO: store pubkey in user instance for easy retrieval
-            let sig = identity.sign_data(msg.as_ref()).await
+            let identity = self.identity_mut().ok_or(Error::NoIdentity("send messages"))?;
+            // TODO: store pubkey in user instance for easy retrieval
+            let sig = identity
+                .sign_data(msg.as_ref())
+                .await
                 .map_err(|e| Error::Transport(address, "send message", e))?;
-            let pub_key = identity.identifier().sig_pk().await
+            let pub_key = identity
+                .identifier()
+                .sig_pk()
+                .await
                 .map_err(|e| Error::Transport(address, "send message", e))?;
             self.transport
-                .send_message(
-                    address,
-                    msg,
-                    pub_key,
-                    sig
-                )
+                .send_message(address, msg, pub_key, sig)
                 .await
                 .map_err(|e| Error::Transport(address, "send announce message", e))
         }

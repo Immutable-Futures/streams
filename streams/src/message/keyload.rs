@@ -39,14 +39,14 @@ use crypto::keys::x25519;
 use hashbrown::HashMap;
 
 // Streams
+#[cfg(feature = "did")]
+use lets::id::did::DID_ENCRYPTED_DATA_SIZE;
 use lets::{
     id::{Identifier, Identity, Permissioned, Psk, PskId},
     message::{
         self, ContentDecrypt, ContentEncrypt, ContentEncryptSizeOf, ContentSign, ContentSignSizeof, ContentVerify,
     },
 };
-#[cfg(feature = "did")]
-use lets::id::did::DID_ENCRYPTED_DATA_SIZE;
 use spongos::{
     ddml::{
         commands::{sizeof, unwrap, wrap, Absorb, Commit, Fork, Join, Mask},
@@ -178,15 +178,17 @@ where
         // Loop through provided identifiers, masking the shared key for each one
         #[cfg(not(feature = "did"))]
         for subscriber in subscribers {
-            self.fork()
-                .encrypt(subscriber.identifier(), &keyload.key)
-                .await?;
+            self.fork().encrypt(subscriber.identifier(), &keyload.key).await?;
         }
         #[cfg(feature = "did")]
         for mut subscriber in subscribers {
             self.fork()
                 .mask(&subscriber)?
-                .encrypt(keyload.author_id.identity_kind(), subscriber.identifier_mut(), &keyload.key)
+                .encrypt(
+                    keyload.author_id.identity_kind(),
+                    subscriber.identifier_mut(),
+                    &keyload.key,
+                )
                 .await?;
         }
         self.absorb(n_psks)?;
@@ -280,7 +282,8 @@ where
                 // Can unwrap if user_id is some
                 let user_id = keyload.user_id.as_mut().unwrap();
                 if subscriber_id.identifier() == user_id.identifier() {
-                    fork.decrypt(user_id.identity_kind(), key.get_or_insert([0u8; KEY_SIZE])).await?;
+                    fork.decrypt(user_id.identity_kind(), key.get_or_insert([0u8; KEY_SIZE]))
+                        .await?;
                 } else {
                     fork.drop(drop_len)?;
                 }

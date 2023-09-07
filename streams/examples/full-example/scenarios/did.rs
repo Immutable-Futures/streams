@@ -6,24 +6,26 @@ use textwrap::{fill, indent};
 
 // IOTA
 use identity_iota::{
-    crypto::{KeyType, KeyPair},
+    crypto::{KeyPair, KeyType},
+    iota::{
+        block::{address::Address, output::AliasOutputBuilder},
+        IotaClientExt, IotaDocument, IotaIdentityClientExt, NetworkName,
+    },
     verification::{MethodScope, VerificationMethod},
-    iota::{IotaDocument, IotaIdentityClientExt, IotaClientExt, NetworkName, block::output::AliasOutputBuilder},
 };
-use identity_iota::iota::block::address::Address;
 
 use iota_client::{
     block::output::dto::OutputDto,
     client::Client as DIDClient,
     crypto::keys::bip39,
     node_api::indexer::query_parameters::QueryParameter,
-    secret::{SecretManager, stronghold::StrongholdSecretManager},
+    secret::{stronghold::StrongholdSecretManager, SecretManager},
 };
 
 // Streams
 use streams::{
     id::{
-        did::{DIDInfo, DIDUrlInfo, DID, Location, STREAMS_VAULT},
+        did::{DIDInfo, DIDUrlInfo, Location, DID, STREAMS_VAULT},
         Permissioned, Psk,
     },
     Result, User,
@@ -53,8 +55,10 @@ pub(crate) async fn example<SR, T: GenericTransport<SR>>(transport: T) -> Result
     println!("> Making DID with method for the Author");
     let author_did_info = make_did_info(&did_client, "auth_key", "auth_xkey", "auth_signing_key", "auth").await?;
     println!("> Making a couple DIDs with methods for the Subscribers");
-    let subscriber_a_did_info = make_did_info(&did_client, "sub_a_key", "sub_a_xkey", "subA_signing_key", "subA").await?;
-    let subscriber_b_did_info = make_did_info(&did_client, "sub_b_key", "sub_b_xkey", "subB_signing_key", "subB").await?;
+    let subscriber_a_did_info =
+        make_did_info(&did_client, "sub_a_key", "sub_a_xkey", "subA_signing_key", "subA").await?;
+    let subscriber_b_did_info =
+        make_did_info(&did_client, "sub_b_key", "sub_b_xkey", "subB_signing_key", "subB").await?;
 
     // Generate a simple PSK for storage by users
     let psk = Psk::from_seed("A pre shared key");
@@ -129,7 +133,9 @@ pub(crate) async fn example<SR, T: GenericTransport<SR>>(transport: T) -> Result
     let second_keyload_as_author = author
         .send_keyload(
             BRANCH1,
-            [Permissioned::Read(subscription_b_as_author.header().publisher().clone())],
+            [Permissioned::Read(
+                subscription_b_as_author.header().publisher().clone(),
+            )],
             [psk.to_pskid()],
         )
         .await?;
@@ -199,7 +205,10 @@ async fn make_did_info(
     let doc_keypair = KeyPair::new(KeyType::Ed25519)?;
     let mnemonic = bip39::wordlist::encode(doc_keypair.private().as_ref(), &bip39::wordlist::ENGLISH)
         .map_err(|err| anyhow!(format!("{err:?}")))?;
-    adapter.store_mnemonic(mnemonic).await.map_err(|e| anyhow!(e.to_string()))?;
+    adapter
+        .store_mnemonic(mnemonic)
+        .await
+        .map_err(|e| anyhow!(e.to_string()))?;
     let mut stronghold = SecretManager::Stronghold(adapter);
     let address = request_faucet_funds(did_client, &mut stronghold).await?;
 
@@ -222,12 +231,25 @@ async fn make_did_info(
 
     // Create the root document, publish it and test resolving it
     let doc = new_doc(did_client, &mut stronghold, &doc_keypair, doc_signing_fragment, address).await?;
-    let mut doc = did_client.resolve_did(doc.id()).await.map_err(|e| anyhow!(e.to_string()))?;
+    let mut doc = did_client
+        .resolve_did(doc.id())
+        .await
+        .map_err(|e| anyhow!(e.to_string()))?;
 
-    // Generate a signing and exchange keypair to be used by the streams instance, storing them in the stronghold
-    generate_streams_keys(&mut stronghold, &mut doc, &doc_keypair, doc_signing_fragment, signing_fragment, exchange_fragment).await?;
+    // Generate a signing and exchange keypair to be used by the streams instance, storing them in the
+    // stronghold
+    generate_streams_keys(
+        &mut stronghold,
+        &mut doc,
+        &doc_keypair,
+        doc_signing_fragment,
+        signing_fragment,
+        exchange_fragment,
+    )
+    .await?;
 
-    // Resolve the latest output and update it with the given document, updating the storage deposit for the new rent structure
+    // Resolve the latest output and update it with the given document, updating the storage deposit for
+    // the new rent structure
     let alias_output = did_client.update_did_output(doc.clone()).await?;
     let rent_structure = did_client.get_rent_structure().await?;
     let alias_output = AliasOutputBuilder::from(&alias_output)
@@ -244,27 +266,22 @@ async fn make_did_info(
             url_info = url_info.with_stronghold(stronghold);
             Ok(DIDInfo::new(url_info))
         }
-        _ => Err(anyhow!("unexpected Stronghold type"))
+        _ => Err(anyhow!("unexpected Stronghold type")),
     }
 }
-
 
 // Fetch the stronghold adapter for the provided user
 fn stronghold_adapter(ext: &str) -> Result<StrongholdSecretManager> {
     Ok(StrongholdSecretManager::builder()
         .password(STRONGHOLD_PASSWORD)
         .build(STRONGHOLD_URL.to_owned() + "_" + ext)
-        .map_err(|e| anyhow!(e.to_string()))?
-    )
+        .map_err(|e| anyhow!(e.to_string()))?)
 }
 
 // Request the funds for the Identity to be stored with
 async fn request_faucet_funds(did_client: &DIDClient, stronghold: &mut SecretManager) -> anyhow::Result<Address> {
     // Fetch addresseses from the stronghold adapter for faucet funds
-    let addresses = did_client.get_addresses(stronghold)
-        .with_range(0..1)
-        .get_raw()
-        .await?;
+    let addresses = did_client.get_addresses(stronghold).with_range(0..1).get_raw().await?;
     let b32_address = addresses[0].to_bech32(did_client.get_bech32_hrp().await?);
     iota_client::request_funds_from_faucet(FAUCET, &b32_address).await?;
 
@@ -274,7 +291,13 @@ async fn request_faucet_funds(did_client: &DIDClient, stronghold: &mut SecretMan
 }
 
 // Create a new IOTA DID document and publish it
-async fn new_doc(did_client: &DIDClient, stronghold: &mut SecretManager, doc_keypair: &KeyPair, doc_signing_fragment: &str, output_address: Address) -> anyhow::Result<IotaDocument> {
+async fn new_doc(
+    did_client: &DIDClient,
+    stronghold: &mut SecretManager,
+    doc_keypair: &KeyPair,
+    doc_signing_fragment: &str,
+    output_address: Address,
+) -> anyhow::Result<IotaDocument> {
     // Create a new document with a base method
     let network_name: NetworkName = did_client.get_network_name().await?.try_into()?;
     let mut doc = IotaDocument::new(&network_name);
@@ -282,8 +305,9 @@ async fn new_doc(did_client: &DIDClient, stronghold: &mut SecretManager, doc_key
         doc.id().clone(),
         KeyType::Ed25519,
         doc_keypair.public(),
-        doc_signing_fragment
-    ).map_err(|e| anyhow!(e.to_string()))?;
+        doc_signing_fragment,
+    )
+    .map_err(|e| anyhow!(e.to_string()))?;
     doc.insert_method(method, MethodScope::VerificationMethod)?;
 
     // Create new alias output and publish it
@@ -299,9 +323,10 @@ async fn generate_streams_keys(
     doc_keypair: &KeyPair,
     doc_signing_fragment: &str,
     signing_fragment: &str,
-    exchange_fragment: &str
+    exchange_fragment: &str,
 ) -> anyhow::Result<()> {
-    let method = doc.resolve_method(&format!("#{doc_signing_fragment}"), None)
+    let method = doc
+        .resolve_method(&format!("#{doc_signing_fragment}"), None)
         .expect("Should be able to fetch method from newly made doc");
 
     let doc_key_location = Location::generic(STREAMS_VAULT, method.id().to_string());
@@ -320,13 +345,13 @@ async fn generate_streams_keys(
                 doc.id().clone(),
                 KeyType::Ed25519,
                 signing_kp.public(),
-                signing_fragment
+                signing_fragment,
             )?;
             let exchange_method = VerificationMethod::new(
                 doc.id().clone(),
                 KeyType::X25519,
                 exchange_kp.public(),
-                exchange_fragment
+                exchange_fragment,
             )?;
 
             let signing_key_location = Location::generic(STREAMS_VAULT, signing_method.id().to_string());
@@ -341,6 +366,6 @@ async fn generate_streams_keys(
             doc.insert_method(exchange_method, MethodScope::VerificationMethod)?;
             Ok(())
         }
-        _ => return Err(anyhow!("unexpected Stronghold type").into())
+        _ => return Err(anyhow!("unexpected Stronghold type").into()),
     }
 }

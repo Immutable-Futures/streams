@@ -4,11 +4,7 @@ use core::fmt::{Debug, Formatter};
 use std::{cmp::Ordering, hash::Hasher};
 
 // IOTA
-use identity_iota::{
-    core::BaseEncoding,
-    iota::IotaDID,
-    verification::MethodData
-};
+use identity_iota::{core::BaseEncoding, iota::IotaDID, verification::MethodData};
 
 use iota_client::secret::stronghold::StrongholdSecretManager;
 
@@ -45,10 +41,10 @@ pub struct DIDUrlInfo {
 impl Default for DIDUrlInfo {
     fn default() -> Self {
         DIDUrlInfo::new(
-            IotaDID::new(&[0_u8;32], &"dflt".try_into().unwrap()),
+            IotaDID::new(&[0_u8; 32], &"dflt".try_into().unwrap()),
             String::new(),
             String::new(),
-            String::new()
+            String::new(),
         )
     }
 }
@@ -60,7 +56,7 @@ impl Clone for DIDUrlInfo {
             client_url: self.client_url.clone(),
             exchange_fragment: self.exchange_fragment.clone(),
             signing_fragment: self.signing_fragment.clone(),
-            stronghold: None
+            stronghold: None,
         }
     }
 }
@@ -77,9 +73,9 @@ impl std::hash::Hash for DIDUrlInfo {
 impl PartialEq for DIDUrlInfo {
     fn eq(&self, other: &Self) -> bool {
         self.did == other.did
-        && self.client_url == other.client_url
-        && self.exchange_fragment == other.exchange_fragment
-        && self.signing_fragment == other.signing_fragment
+            && self.client_url == other.client_url
+            && self.exchange_fragment == other.exchange_fragment
+            && self.signing_fragment == other.signing_fragment
     }
 }
 
@@ -101,10 +97,7 @@ impl Debug for DIDUrlInfo {
     fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
         f.write_str(&format!(
             "{{\n\tdid: {},\n\tclient_url: {},\n\texchange_fragment{},\n\tsigning_fragment{}\n}}",
-            self.did,
-            self.client_url,
-            self.exchange_fragment,
-            self.signing_fragment
+            self.did, self.client_url, self.exchange_fragment, self.signing_fragment
         ))
     }
 }
@@ -134,7 +127,8 @@ impl DIDUrlInfo {
     }
 
     pub fn stronghold(&mut self) -> Result<&mut StrongholdSecretManager> {
-        self.stronghold.as_mut()
+        self.stronghold
+            .as_mut()
             .ok_or(Error::did("fetching stronghold", "stronghold not found".to_string()))
     }
 
@@ -150,17 +144,24 @@ impl DIDUrlInfo {
         match method.data() {
             MethodData::PublicKeyMultibase(pk) => {
                 // Multibase is 32 bytes long there should be no errors unwrapping conversion
-                let pk_bytes: [u8;32] = BaseEncoding::decode_multibase(&pk)
+                let pk_bytes: [u8; 32] = BaseEncoding::decode_multibase(&pk)
                     .map_err(|e| Error::did("verify data from document", e.to_string()))?
-                    .try_into().unwrap();
+                    .try_into()
+                    .unwrap();
                 let sig = crypto::signatures::ed25519::Signature::from_bytes(signature_bytes.try_into().unwrap());
-                if crypto::signatures::ed25519::PublicKey::try_from(pk_bytes).unwrap().verify(&sig, hash) {
+                if crypto::signatures::ed25519::PublicKey::try_from(pk_bytes)
+                    .unwrap()
+                    .verify(&sig, hash)
+                {
                     Ok(())
                 } else {
                     Err(Error::did("verify data from document", "failed to verify".to_string()))
                 }
             }
-            _ => Err(Error::did("verify data from document", "not the right method data".to_string()))
+            _ => Err(Error::did(
+                "verify data from document",
+                "not the right method data".to_string(),
+            )),
         }
     }
 

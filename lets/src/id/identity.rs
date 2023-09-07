@@ -1,6 +1,9 @@
 // Rust
 use alloc::boxed::Box;
-use core::{hash::Hash, ops::{Deref, DerefMut}};
+use core::{
+    hash::Hash,
+    ops::{Deref, DerefMut},
+};
 
 // 3rd-party
 use async_trait::async_trait;
@@ -9,22 +12,14 @@ use async_trait::async_trait;
 #[cfg(not(feature = "did"))]
 use crypto::signatures::ed25519;
 #[cfg(feature = "did")]
-use identity_iota::{
-    did::DID as IdentityDID,
-    iota::IotaDID,
-};
+use identity_iota::{did::DID as IdentityDID, iota::IotaDID};
 
 #[cfg(feature = "did")]
-use iota_client::{
-    api::EncryptedData,
-    stronghold::Location,
-};
+use iota_client::{api::EncryptedData, stronghold::Location};
 
 // IOTA-Streams
 #[cfg(not(feature = "did"))]
-use spongos::{
-    ddml::commands::{X25519, Ed25519 as Ed25519Command},
-};
+use spongos::ddml::commands::{Ed25519 as Ed25519Command, X25519};
 #[cfg(feature = "did")]
 use spongos::ddml::types::Bytes;
 
@@ -47,14 +42,16 @@ use crate::id::ed25519::Ed25519;
 use crate::{
     alloc::string::ToString,
     error::Error,
-    id::did::{DID, get_exchange_method, STREAMS_VAULT},
+    id::{
+        did::{get_exchange_method, DID, STREAMS_VAULT},
+        ed25519::Ed25519Sig,
+    },
 };
 
 use crate::{
     id::identifier::Identifier,
     message::{ContentDecrypt, ContentSign, ContentSignSizeof},
 };
-use crate::id::ed25519::Ed25519Sig;
 
 /// Wrapper around [`Identifier`], specifying which type of [`Identity`] is being used. An
 /// [`Identity`] is the foundation of message sending and verification.
@@ -175,7 +172,8 @@ impl IdentityKind {
                 let fragment = url_info.signing_fragment().to_string();
                 // Check to see if there is a stronghold stored first to avoid unnecessary
                 // processing
-                let stronghold = url_info.stronghold()
+                let stronghold = url_info
+                    .stronghold()
                     .map_err(|e| SpongosError::Context("fetching stronghold adaptor", e.to_string()))?;
 
                 // Join the DID identifier with the key fragment of the verification method
@@ -195,12 +193,14 @@ impl IdentityKind {
                 let _ = stronghold.read_stronghold_snapshot().await;
 
                 let location = Location::generic(STREAMS_VAULT, method.to_string().as_bytes());
-                let sig = stronghold.ed25519_sign(location, &data).await
+                let sig = stronghold
+                    .ed25519_sign(location, &data)
+                    .await
                     .map_err(|e| SpongosError::Context("signing hash", e.to_string()))?;
                 Ok(Ed25519Sig::from_bytes(sig))
-            },
+            }
             #[cfg(not(feature = "did"))]
-            IdentityKind::Ed25519(_) => unimplemented!()
+            IdentityKind::Ed25519(_) => unimplemented!(),
         }
     }
 }
@@ -319,7 +319,8 @@ where
                         let fragment = url_info.signing_fragment().to_string();
                         // Check to see if there is a stronghold stored first to avoid unnecessary
                         // processing
-                        let stronghold = url_info.stronghold()
+                        let stronghold = url_info
+                            .stronghold()
                             .map_err(|e| SpongosError::Context("fetching stronghold adaptor", e.to_string()))?;
                         let mut hash = [0; 64];
                         let key_fragment = fragment.as_bytes().to_vec();
@@ -330,7 +331,7 @@ where
 
                         // Join the DID identifier with the key fragment of the verification method
                         let fragment = if !fragment.starts_with("#") {
-                          format!("#{fragment}")
+                            format!("#{fragment}")
                         } else {
                             fragment
                         };
@@ -345,7 +346,9 @@ where
                         let _ = stronghold.read_stronghold_snapshot().await;
 
                         let location = Location::generic(STREAMS_VAULT, method.to_string().as_bytes());
-                        let sig = stronghold.ed25519_sign(location, &hash).await
+                        let sig = stronghold
+                            .ed25519_sign(location, &hash)
+                            .await
                             .map_err(|e| SpongosError::Context("signing hash", e.to_string()))?;
 
                         self.absorb(NBytes::new(sig))
@@ -388,10 +391,15 @@ where
 
                 // Perform stronghold AEAD decryption
                 let location = Location::generic(STREAMS_VAULT, method.id().to_string());
-                let stronghold = did.info_mut().url_info_mut().stronghold()
+                let stronghold = did
+                    .info_mut()
+                    .url_info_mut()
+                    .stronghold()
                     .map_err(|e| SpongosError::Context("retrieving stronghold adapter", e.to_string()))?;
                 let _ = stronghold.read_stronghold_snapshot().await;
-                let data = stronghold.x25519_decrypt(location, data).await
+                let data = stronghold
+                    .x25519_decrypt(location, data)
+                    .await
                     .map_err(|e| SpongosError::Context("decrypting data", e.to_string()))?;
                 // Update key with decrypted secret
                 key.clone_from_slice(data.as_slice());

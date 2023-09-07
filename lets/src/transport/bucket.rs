@@ -15,6 +15,7 @@ use crate::{
     message::TransportMessage,
     transport::Transport,
 };
+#[cfg(feature = "did")]
 use crate::id::{Ed25519Pub, Ed25519Sig};
 
 /// [`BTreeMap`] wrapper client for testing purposes
@@ -68,9 +69,15 @@ where
     }
 
     #[cfg(feature = "did")]
-    async fn send_message(&mut self, addr: Address, msg: Msg, _public_key: Ed25519Pub, _signature: Ed25519Sig) -> Result<Msg>
-        where
-            Self::Msg: 'async_trait,
+    async fn send_message(
+        &mut self,
+        addr: Address,
+        msg: Msg,
+        _public_key: Ed25519Pub,
+        _signature: Ed25519Sig,
+    ) -> Result<Msg>
+    where
+        Self::Msg: 'async_trait,
     {
         self.bucket.lock().entry(addr).or_default().push(msg.clone());
         Ok(msg)

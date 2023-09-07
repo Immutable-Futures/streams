@@ -13,20 +13,24 @@ use serde::{de::DeserializeOwned, Deserialize, Serialize};
 // IOTA
 use crypto::{
     encoding::ternary::{b1t6, Btrit, T1B1Buf, TritBuf},
-    hashes::{blake2b::Blake2b256, ternary::{self, curl_p}, Digest},
+    hashes::{
+        blake2b::Blake2b256,
+        ternary::{self, curl_p},
+        Digest,
+    },
 };
 
 // Streams
 
 // Local
+#[cfg(feature = "did")]
+use crate::id::{Ed25519Pub, Ed25519Sig};
 use crate::{
     address::Address,
     error::{Error, Result},
     message::TransportMessage,
     transport::Transport,
 };
-#[cfg(feature = "did")]
-use crate::id::{Ed25519Pub, Ed25519Sig, IdentityKind};
 
 const NONCE_SIZE: usize = core::mem::size_of::<u64>();
 // Precomputed natural logarithm of 3 for performance reasons.
@@ -112,14 +116,26 @@ where
     /// * `address`: The address of the message.
     /// * `msg`: Message - The message to send.
     #[cfg(feature = "did")]
-    async fn send_message(&mut self, address: Address, msg: Message, public_key: Ed25519Pub, signature: Ed25519Sig) -> Result<SendResponse>
+    async fn send_message(
+        &mut self,
+        address: Address,
+        msg: Message,
+        public_key: Ed25519Pub,
+        signature: Ed25519Sig,
+    ) -> Result<SendResponse>
     where
         Message: 'async_trait + Send,
     {
         let network_info = self.get_network_info().await?;
         let tips = self.get_tips().await?;
 
-        let mut block = Block::new(tips, address.to_msg_index().to_vec(), msg.as_ref().to_vec(), public_key.as_slice().to_vec(), signature.to_bytes().to_vec());
+        let mut block = Block::new(
+            tips,
+            address.to_msg_index().to_vec(),
+            msg.as_ref().to_vec(),
+            public_key.as_slice().to_vec(),
+            signature.to_bytes().to_vec(),
+        );
         let message_bytes = serde_json::to_vec(&block)?;
         block.set_nonce(nonce(&message_bytes, network_info.protocol.min_pow_score as f64)?);
 
@@ -145,7 +161,13 @@ where
         let network_info = self.get_network_info().await?;
         let tips = self.get_tips().await?;
 
-        let mut block = Block::new(tips, address.to_msg_index().to_vec(), msg.as_ref().to_vec(), vec![], vec![]);
+        let mut block = Block::new(
+            tips,
+            address.to_msg_index().to_vec(),
+            msg.as_ref().to_vec(),
+            vec![],
+            vec![],
+        );
         let message_bytes = serde_json::to_vec(&block)?;
         block.set_nonce(nonce(&message_bytes, network_info.protocol.min_pow_score as f64)?);
 
@@ -177,7 +199,8 @@ where
             .json()
             .await?;
 
-        let msg = index_data.0
+        let msg = index_data
+            .0
             .into_iter()
             .next()
             .ok_or(Error::AddressError("No message found", address))?;
@@ -198,7 +221,7 @@ fn nonce(data: &[u8], target_score: f64) -> Result<u64> {
             for i in 0..curl_p::BATCH_SIZE {
                 let mut buffer = TritBuf::<T1B1Buf>::zeros(ternary::HASH_LENGTH);
                 buffer[..pow_digest.len()].copy_from(&pow_digest);
-                let nonce_trits = b1t6::encode::<T1B1Buf<>>(&(n as u64 + i as u64).to_le_bytes());
+                let nonce_trits = b1t6::encode::<T1B1Buf>(&(n as u64 + i as u64).to_le_bytes());
                 buffer[pow_digest.len()..pow_digest.len() + nonce_trits.len()].copy_from(&nonce_trits);
                 hasher.add(buffer);
             }
@@ -224,8 +247,8 @@ struct NetworkInfo {
 #[derive(Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct Protocol {
-     /// The minimum pow score of the network.
-    min_pow_score: u32
+    /// The minimum pow score of the network.
+    min_pow_score: u32,
 }
 
 #[derive(Serialize, Deserialize, PartialEq)]
@@ -264,7 +287,7 @@ impl Block {
 
 #[derive(Serialize, Deserialize)]
 struct TaggedPayload {
-    //TODO: add limit checks
+    // TODO: add limit checks
     #[serde(rename = "type")]
     kind: u8,
     tag: String,
@@ -292,7 +315,7 @@ struct BlockResponse(Vec<Block>);
 #[derive(Clone, Deserialize)]
 pub struct SentMessageResponse {
     #[serde(rename = "blockId")]
-    pub block_id: String
+    pub block_id: String,
 }
 
 impl TryFrom<Block> for TransportMessage {
