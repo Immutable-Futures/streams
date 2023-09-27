@@ -6,11 +6,10 @@ use std::{cmp::Ordering, hash::Hasher};
 // IOTA
 use identity_iota::{core::BaseEncoding, iota::IotaDID, verification::MethodData};
 
-use iota_client::secret::stronghold::StrongholdSecretManager;
-
 use crate::{
     alloc::string::ToString,
     error::{Error, Result},
+    id::did::StrongholdSecretManager
 };
 
 // Streams

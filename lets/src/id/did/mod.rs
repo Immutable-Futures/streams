@@ -11,4 +11,7 @@ pub(crate) use did::{get_exchange_method, resolve_document};
 pub const STREAMS_VAULT: &[u8] = b"streams-secrets-vault";
 // 32 pub key + 12 nonce + 16 tag + 32 ciphertext
 pub const DID_ENCRYPTED_DATA_SIZE: usize = 92;
+
+// 3rd party
 pub use iota_client::stronghold::Location;
+pub use iota_client::secret::stronghold::StrongholdSecretManager;

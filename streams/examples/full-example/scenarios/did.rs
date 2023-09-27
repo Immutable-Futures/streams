@@ -19,13 +19,13 @@ use iota_client::{
     client::Client as DIDClient,
     crypto::keys::bip39,
     node_api::indexer::query_parameters::QueryParameter,
-    secret::{stronghold::StrongholdSecretManager, SecretManager},
+    secret::SecretManager,
 };
 
 // Streams
 use streams::{
     id::{
-        did::{DIDInfo, DIDUrlInfo, Location, DID, STREAMS_VAULT},
+        did::{DIDInfo, DIDUrlInfo, Location, DID, STREAMS_VAULT, StrongholdSecretManager},
         Permissioned, Psk,
     },
     Result, User,

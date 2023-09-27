@@ -37,7 +37,7 @@ use spongos::{
 };
 
 #[cfg(feature = "did")]
-use iota_client::secret::stronghold::StrongholdSecretManager;
+use lets::id::did::StrongholdSecretManager;
 
 // Local
 use crate::{
@@ -172,11 +172,10 @@ impl<T> User<T> {
     #[cfg(feature = "did")]
     pub fn with_stronghold(&mut self, stronghold: StrongholdSecretManager) {
         if let Some(identity) = self.identity_mut() {
-            if let lets::id::IdentityKind::DID(did) = identity {
-                if let lets::id::did::DID::PrivateKey(info) = did {
-                    let mut did_info = info.url_info_mut();
-                    did_info = &mut did_info.with_stronghold(stronghold);
-                }
+            let lets::id::IdentityKind::DID(did) = identity.identity_kind();
+            if let lets::id::did::DID::PrivateKey(info) = did {
+                let did_info = info.url_info_mut();
+                *did_info = did_info.clone().with_stronghold(stronghold);
             }
         }
     }
