@@ -36,6 +36,9 @@ use spongos::{
     KeccakF1600, Spongos, SpongosRng,
 };
 
+#[cfg(feature = "did")]
+use iota_client::secret::stronghold::StrongholdSecretManager;
+
 // Local
 use crate::{
     api::{
@@ -164,6 +167,18 @@ impl<T> User<T> {
     /// Returns a mutable reference to the [User's](`User`) [`Identity`] if any.
     fn identity_mut(&mut self) -> Option<&mut Identity> {
         self.state.user_id.as_mut()
+    }
+
+    #[cfg(feature = "did")]
+    pub fn with_stronghold(&mut self, stronghold: StrongholdSecretManager) {
+        if let Some(identity) = self.identity_mut() {
+            if let lets::id::IdentityKind::DID(did) = identity {
+                if let lets::id::did::DID::PrivateKey(info) = did {
+                    let mut did_info = info.url_info_mut();
+                    did_info = &mut did_info.with_stronghold(stronghold);
+                }
+            }
+        }
     }
 
     /// Returns a reference to the [User's](`User`) [permission](`Permissioned`) for a given branch
