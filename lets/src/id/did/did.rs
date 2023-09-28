@@ -55,13 +55,12 @@ pub(crate) async fn get_exchange_method(info: &DIDUrlInfo) -> SpongosResult<Veri
         .map(|method| method.clone())
 }
 
+//TODO: Remove redundant layerings now that accounts don't exist
 /// Type of `DID` implementation
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum DID {
-    // TODO: Add DID Account implementation
     /// Private Key based [`DIDInfo`], manually specifying key pairs
     PrivateKey(DIDInfo),
-    Default,
 }
 
 impl DID {
@@ -69,7 +68,6 @@ impl DID {
     pub(crate) fn info(&self) -> &DIDInfo {
         match self {
             Self::PrivateKey(did_info) => did_info,
-            Self::Default => unreachable!(),
         }
     }
 
@@ -77,14 +75,13 @@ impl DID {
     pub(crate) fn info_mut(&mut self) -> &mut DIDInfo {
         match self {
             Self::PrivateKey(did_info) => did_info,
-            Self::Default => unreachable!(),
         }
     }
 }
 
 impl Default for DID {
     fn default() -> Self {
-        DID::Default
+        DID::PrivateKey(DIDInfo::new(DIDUrlInfo::default()))
     }
 }
 
