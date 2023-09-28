@@ -37,7 +37,10 @@ use spongos::{
 };
 
 #[cfg(feature = "did")]
-use lets::id::did::StrongholdSecretManager;
+use lets::id::{
+    IdentityKind,
+    did::{DID, StrongholdSecretManager}
+};
 
 // Local
 use crate::{
@@ -172,11 +175,9 @@ impl<T> User<T> {
     #[cfg(feature = "did")]
     pub fn with_stronghold(&mut self, stronghold: StrongholdSecretManager) {
         if let Some(identity) = self.identity_mut() {
-            let lets::id::IdentityKind::DID(did) = identity.identity_kind();
-            if let lets::id::did::DID::PrivateKey(info) = did {
-                let did_info = info.url_info_mut();
-                *did_info = did_info.clone().with_stronghold(stronghold);
-            }
+            let IdentityKind::DID(DID::PrivateKey(info)) = identity.identity_kind();
+            let did_info = info.url_info_mut();
+            *did_info = did_info.clone().with_stronghold(stronghold);
         }
     }
 

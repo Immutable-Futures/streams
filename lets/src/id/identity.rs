@@ -147,7 +147,7 @@ impl Default for IdentityKind {
             Self::Ed25519(Ed25519::new(signing_private_key))
         }
         #[cfg(feature = "did")]
-        Self::DID(DID::Default)
+        Self::DID(DID::default())
     }
 }
 
@@ -286,7 +286,6 @@ impl ContentSignSizeof<Identity> for sizeof::Context {
                         .squeeze(External::new(&NBytes::new(&hash)))?
                         .absorb(NBytes::new(signature))
                 }
-                DID::Default => unreachable!(),
             },
         }
     }
@@ -353,8 +352,6 @@ where
 
                         self.absorb(NBytes::new(sig))
                     }
-                    DID::Default => unreachable!(),
-                    // TODO: Implement Account logic
                 }
             }
         }
