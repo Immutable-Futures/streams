@@ -55,7 +55,7 @@ pub(crate) async fn get_exchange_method(info: &DIDUrlInfo) -> SpongosResult<Veri
         .map(|method| method.clone())
 }
 
-//TODO: Remove redundant layerings now that accounts don't exist
+// TODO: Remove redundant layerings now that accounts don't exist
 /// Type of `DID` implementation
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum DID {

@@ -15,17 +15,14 @@ use identity_iota::{
 };
 
 use iota_client::{
-    block::output::dto::OutputDto,
-    client::Client as DIDClient,
-    crypto::keys::bip39,
-    node_api::indexer::query_parameters::QueryParameter,
-    secret::SecretManager,
+    block::output::dto::OutputDto, client::Client as DIDClient, crypto::keys::bip39,
+    node_api::indexer::query_parameters::QueryParameter, secret::SecretManager,
 };
 
 // Streams
 use streams::{
     id::{
-        did::{DIDInfo, DIDUrlInfo, Location, DID, STREAMS_VAULT, StrongholdSecretManager},
+        did::{DIDInfo, DIDUrlInfo, Location, StrongholdSecretManager, DID, STREAMS_VAULT},
         Permissioned, Psk,
     },
     Result, User,
@@ -36,11 +33,11 @@ use crate::GenericTransport;
 
 const PUBLIC_PAYLOAD: &[u8] = b"PUBLICPAYLOAD";
 const MASKED_PAYLOAD: &[u8] = b"MASKEDPAYLOAD";
-const CLIENT_URL: &str = "http://localhost:14265";
+const CLIENT_URL: &str = "http://68.183.204.5:14101";
 
 const STRONGHOLD_PASSWORD: &str = "temp_stronghold_password";
 const STRONGHOLD_URL: &str = "temp_stronghold";
-const FAUCET: &str = "http://localhost:8091/api/enqueue";
+const FAUCET: &str = "http://68.183.204.219:8091/api/enqueue";
 const BASE_BRANCH: &str = "BASE_BRANCH";
 const BRANCH1: &str = "BRANCH1";
 
@@ -214,6 +211,7 @@ async fn make_did_info(
 
     // Retrieve Outputs
     let b32_address = address.to_bech32(did_client.get_bech32_hrp().await?);
+    println!("Bech32 address {}", b32_address);
     let output_ids = did_client
         .basic_output_ids(vec![QueryParameter::Address(b32_address)])
         .await?;
@@ -283,6 +281,7 @@ async fn request_faucet_funds(did_client: &DIDClient, stronghold: &mut SecretMan
     // Fetch addresseses from the stronghold adapter for faucet funds
     let addresses = did_client.get_addresses(stronghold).with_range(0..1).get_raw().await?;
     let b32_address = addresses[0].to_bech32(did_client.get_bech32_hrp().await?);
+    println!("Requesting funds for {}", b32_address);
     iota_client::request_funds_from_faucet(FAUCET, &b32_address).await?;
 
     println!("Waiting 10 seconds for deposit to enact");

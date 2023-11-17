@@ -38,8 +38,8 @@ use spongos::{
 
 #[cfg(feature = "did")]
 use lets::id::{
+    did::{StrongholdSecretManager, DID},
     IdentityKind,
-    did::{DID, StrongholdSecretManager}
 };
 
 // Local

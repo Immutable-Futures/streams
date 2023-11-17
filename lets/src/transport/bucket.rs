@@ -9,14 +9,14 @@ use async_trait::async_trait;
 // Streams
 
 // Local
+#[cfg(feature = "did")]
+use crate::id::{Ed25519Pub, Ed25519Sig};
 use crate::{
     address::Address,
     error::{Error, Result},
     message::TransportMessage,
     transport::Transport,
 };
-#[cfg(feature = "did")]
-use crate::id::{Ed25519Pub, Ed25519Sig};
 
 /// [`BTreeMap`] wrapper client for testing purposes
 #[derive(Clone, Debug)]
