@@ -9,7 +9,6 @@ use core::{
 use async_trait::async_trait;
 
 // IOTA
-#[cfg(not(feature = "did"))]
 use crypto::signatures::ed25519;
 #[cfg(feature = "did")]
 use identity_iota::{did::DID as IdentityDID, iota::IotaDID};
@@ -18,7 +17,6 @@ use identity_iota::{did::DID as IdentityDID, iota::IotaDID};
 use iota_client::{api::EncryptedData, stronghold::Location};
 
 // IOTA-Streams
-#[cfg(not(feature = "did"))]
 use spongos::ddml::commands::{Ed25519 as Ed25519Command, X25519};
 #[cfg(feature = "did")]
 use spongos::ddml::types::Bytes;
@@ -35,17 +33,13 @@ use spongos::{
 };
 
 // Local
-#[cfg(not(feature = "did"))]
-use crate::id::ed25519::Ed25519;
+use crate::id::{Ed25519Sig, ed25519::Ed25519};
 
 #[cfg(feature = "did")]
 use crate::{
     alloc::string::ToString,
     error::Error,
-    id::{
-        did::{get_exchange_method, DID, STREAMS_VAULT},
-        ed25519::Ed25519Sig,
-    },
+    id::did::{get_exchange_method, DID, STREAMS_VAULT},
 };
 
 use crate::{
@@ -112,7 +106,6 @@ impl From<IdentityKind> for Identity {
     }
 }
 
-#[cfg(not(feature = "did"))]
 impl From<Ed25519> for Identity {
     fn from(ed25519: Ed25519) -> Self {
         Self::new(IdentityKind::Ed25519(ed25519))
@@ -130,7 +123,6 @@ impl From<DID> for Identity {
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[allow(clippy::large_enum_variant)]
 pub enum IdentityKind {
-    #[cfg(not(feature = "did"))]
     /// An Ed25519 type [`Identity`] using a private key
     Ed25519(Ed25519),
     /// An IOTA `DID` type [`Identity`] using a `DID` document stored in the tangle
@@ -155,7 +147,6 @@ impl IdentityKind {
     /// Converts the [`IdentityKind`] instance into an [`Identifier`]
     pub fn to_identifier(&self) -> Identifier {
         match self {
-            #[cfg(not(feature = "did"))]
             Self::Ed25519(ed25519) => ed25519.inner().public_key().into(),
             #[cfg(feature = "did")]
             Self::DID(did) => Identifier::DID(did.info().url_info().clone()),
@@ -163,9 +154,10 @@ impl IdentityKind {
     }
 
     // TODO: Make this a non contextual based function for signature usage in wrapping
-    #[cfg(feature = "did")]
+    //#[cfg(feature = "did")]
     pub async fn sign_data(&mut self, data: &[u8]) -> crate::error::Result<Ed25519Sig> {
         match self {
+            #[cfg(feature = "did")]
             IdentityKind::DID(info) => {
                 let url_info = info.info_mut().url_info_mut();
                 let did_url = url_info.did().to_string();
@@ -199,8 +191,10 @@ impl IdentityKind {
                     .map_err(|e| SpongosError::Context("signing hash", e.to_string()))?;
                 Ok(Ed25519Sig::from_bytes(sig))
             }
-            #[cfg(not(feature = "did"))]
-            IdentityKind::Ed25519(_) => unimplemented!(),
+            IdentityKind::Ed25519(sk) => {
+                let sig = sk.inner().sign(data);
+                Ok(sig)
+            },
         }
     }
 }
@@ -208,7 +202,6 @@ impl IdentityKind {
 impl Mask<&Identity> for sizeof::Context {
     fn mask(&mut self, identity: &Identity) -> SpongosResult<&mut Self> {
         match &identity.identitykind {
-            #[cfg(not(feature = "did"))]
             IdentityKind::Ed25519(ed25519) => self.mask(Uint8::new(0))?.mask(NBytes::new(ed25519)),
             #[cfg(feature = "did")]
             IdentityKind::DID(did) => self.mask(Uint8::new(1))?.mask(did),
@@ -223,7 +216,6 @@ where
 {
     fn mask(&mut self, identity: &Identity) -> SpongosResult<&mut Self> {
         match &identity.identitykind {
-            #[cfg(not(feature = "did"))]
             IdentityKind::Ed25519(ed25519) => self.mask(Uint8::new(0))?.mask(NBytes::new(ed25519)),
             #[cfg(feature = "did")]
             IdentityKind::DID(did) => self.mask(Uint8::new(1))?.mask(did),
@@ -240,7 +232,6 @@ where
         let mut oneof = Uint8::default();
         self.mask(&mut oneof)?;
         let identitykind = match oneof.inner() {
-            #[cfg(not(feature = "did"))]
             0 => {
                 let mut ed25519_bytes = [0; ed25519::SECRET_KEY_LENGTH];
                 self.mask(NBytes::new(&mut ed25519_bytes))?;
@@ -264,7 +255,6 @@ where
 impl ContentSignSizeof<Identity> for sizeof::Context {
     async fn sign_sizeof(&mut self, signer: &Identity) -> SpongosResult<&mut Self> {
         match &signer.identitykind {
-            #[cfg(not(feature = "did"))]
             IdentityKind::Ed25519(ed25519) => {
                 let hash = External::new(NBytes::new([0; 64]));
                 self.absorb(Uint8::new(0))?
@@ -299,7 +289,6 @@ where
 {
     async fn sign(&mut self, signer: &mut IdentityKind) -> SpongosResult<&mut Self> {
         match signer {
-            #[cfg(not(feature = "did"))]
             IdentityKind::Ed25519(ed25519) => {
                 let mut hash = External::new(NBytes::new([0; 64]));
                 self.absorb(Uint8::new(0))?
@@ -368,7 +357,6 @@ where
         // TODO: Replace with separate logic for EdPubKey and DID instances (pending Identity xkey
         // introduction)
         match recipient {
-            #[cfg(not(feature = "did"))]
             IdentityKind::Ed25519(kp) => self.x25519(&kp.to_x25519(), NBytes::new(key)),
             #[cfg(feature = "did")]
             IdentityKind::DID(did) => {

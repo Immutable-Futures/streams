@@ -4,7 +4,6 @@ use core::hash::Hash;
 // 3rd-party
 
 // IOTA
-#[cfg(not(feature = "did"))]
 use crypto::keys::x25519;
 use crypto::signatures::ed25519;
 
@@ -46,7 +45,6 @@ impl Ed25519 {
     }
 }
 
-#[cfg(not(feature = "did"))]
 impl Ed25519 {
     /// Returns a reference to the inner [`ed25519::SecretKey`]
     pub(crate) fn inner(&self) -> &ed25519::SecretKey {

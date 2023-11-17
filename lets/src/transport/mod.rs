@@ -9,7 +9,7 @@ use async_trait::async_trait;
 // Streams
 
 // Local
-#[cfg(feature = "did")]
+//#[cfg(feature = "did")]
 use crate::id::{Ed25519Pub, Ed25519Sig};
 use crate::{
     address::Address,
@@ -24,11 +24,11 @@ pub trait Transport<'a> {
     type Msg;
     type SendResponse;
     /// Send a message
-    #[cfg(not(feature = "did"))]
+    /*#[cfg(not(feature = "did"))]
     async fn send_message(&mut self, address: Address, msg: Self::Msg) -> Result<Self::SendResponse>
     where
         'a: 'async_trait;
-    #[cfg(feature = "did")]
+    #[cfg(feature = "did")]*/
     async fn send_message(
         &mut self,
         address: Address,

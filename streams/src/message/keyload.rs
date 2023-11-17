@@ -34,7 +34,6 @@ use core::{iter::IntoIterator, marker::PhantomData};
 use async_trait::async_trait;
 
 // IOTA
-#[cfg(not(feature = "did"))]
 use crypto::keys::x25519;
 use hashbrown::HashMap;
 
@@ -131,15 +130,62 @@ where
     async fn sizeof(&mut self, keyload: &Wrap<'a, 'b, Subscribers, Psks>) -> Result<&mut sizeof::Context> {
         let subscribers = keyload.subscribers.clone().into_iter();
         let psks = keyload.psks.clone().into_iter();
-        let n_subscribers = Size::new(subscribers.len());
         let n_psks = Size::new(psks.len());
-        self.absorb(NBytes::new(keyload.nonce))?.absorb(n_subscribers)?;
+        self.absorb(NBytes::new(keyload.nonce))?;
+
+
         // Loop through provided identifiers, masking the shared key for each one
-        for subscriber in subscribers {
-            self.fork()
-                .mask(&subscriber)?
-                .encrypt_sizeof(subscriber.identifier(), &keyload.key)
-                .await?;
+        #[cfg(not(feature = "did"))]
+        {
+            let n_subscribers = Size::new(subscribers.len());
+            self.absorb(n_subscribers)?;
+            for subscriber in subscribers {
+                self.fork().encrypt_sizeof(subscriber.identifier(), &keyload.key).await?;
+            }
+        }
+
+        // Loop through with did and ed subscribers separately
+        #[cfg(feature = "did")]
+        {
+            let did_subscribers = keyload.subscribers.clone().into_iter()
+                .filter(|s|
+                    match s.identifier() {
+                    Identifier::DID(_) => true,
+                    _ => false
+                })
+                .collect::<Vec<_>>();
+            let ed_subscribers = keyload.subscribers.clone().into_iter()
+                .filter(|s|
+                    match s.identifier() {
+                    Identifier::Ed25519(_) => true,
+                    _ => false
+                })
+                .collect::<Vec<_>>();
+
+            let n_did_subscribers = Size::new(did_subscribers.len());
+            self.absorb(n_did_subscribers)?;
+            for mut subscriber in did_subscribers {
+                self.fork()
+                    .mask(&subscriber)?
+                    .encrypt_sizeof(
+                        subscriber.identifier(),
+                        &keyload.key,
+                    )
+                    .await?;
+            }
+
+            let n_ed_subscribers = Size::new(ed_subscribers.len());
+            self.absorb(n_ed_subscribers)?;
+            for mut subscriber in ed_subscribers {
+                self.fork()
+                    .mask(&subscriber)?
+                    .encrypt_sizeof(
+                        subscriber.identifier(),
+                        &keyload.key,
+                    )
+                    .await?;
+            }
+
         }
         self.absorb(n_psks)?;
         // Loop through provided pskids, masking the shared key for each one
@@ -168,29 +214,69 @@ where
     OS: io::OStream,
 {
     async fn wrap(&mut self, keyload: &mut Wrap<'a, 'b, Subscribers, Psks>) -> Result<&mut Self> {
-        let subscribers = keyload.subscribers.clone().into_iter();
         let psks = keyload.psks.clone().into_iter();
-        let n_subscribers = Size::new(subscribers.len());
         let n_psks = Size::new(psks.len());
+
         self.join(keyload.initial_state)?
-            .absorb(NBytes::new(keyload.nonce))?
-            .absorb(n_subscribers)?;
+            .absorb(NBytes::new(keyload.nonce))?;
+
         // Loop through provided identifiers, masking the shared key for each one
         #[cfg(not(feature = "did"))]
-        for subscriber in subscribers {
-            self.fork().encrypt(subscriber.identifier(), &keyload.key).await?;
+        {
+            let subscribers = keyload.subscribers.clone().into_iter();
+            let n_subscribers = Size::new(subscribers.len());
+            self.absorb(n_subscribers)?;
+            for subscriber in subscribers {
+                self.fork().encrypt(subscriber.identifier(), &keyload.key).await?;
+            }
         }
+
+        // Loop through with did and ed subscribers separately
         #[cfg(feature = "did")]
-        for mut subscriber in subscribers {
-            self.fork()
-                .mask(&subscriber)?
-                .encrypt(
-                    keyload.author_id.identity_kind(),
-                    subscriber.identifier_mut(),
-                    &keyload.key,
-                )
-                .await?;
+        {
+            let did_subscribers = keyload.subscribers.clone().into_iter()
+                .filter(|s|
+                    match s.identifier() {
+                        Identifier::DID(_) => true,
+                        _ => false
+                    })
+                    .collect::<Vec<_>>();
+            let ed_subscribers = keyload.subscribers.clone().into_iter()
+                .filter(|s|
+                    match s.identifier() {
+                        Identifier::Ed25519(_) => true,
+                        _ => false
+                    })
+                    .collect::<Vec<_>>();
+
+            let n_did_subscribers = Size::new(did_subscribers.len());
+            self.absorb(n_did_subscribers)?;
+            for mut subscriber in did_subscribers {
+                self.fork()
+                    .mask(&subscriber)?
+                    .encrypt(
+                        keyload.author_id.identity_kind(),
+                        subscriber.identifier_mut(),
+                        &keyload.key,
+                    )
+                    .await?;
+            }
+
+            let n_ed_subscribers = Size::new(ed_subscribers.len());
+            self.absorb(n_ed_subscribers)?;
+            for mut subscriber in ed_subscribers {
+                self.fork()
+                    .mask(&subscriber)?
+                    .encrypt(
+                        keyload.author_id.identity_kind(),
+                        subscriber.identifier_mut(),
+                        &keyload.key,
+                    )
+                    .await?;
+            }
+
         }
+
         self.absorb(n_psks)?;
         // Loop through provided pskids, masking the shared key for each one
         for (pskid, psk) in psks {
@@ -261,36 +347,46 @@ where
     async fn unwrap(&mut self, keyload: &mut Unwrap<'a>) -> Result<&mut Self> {
         let mut nonce = [0u8; NONCE_SIZE];
         let mut key: Option<[u8; KEY_SIZE]> = None;
-        let mut n_subscribers = Size::default();
         let mut n_psks = Size::default();
         self.join(keyload.initial_state)?
-            .absorb(NBytes::new(&mut nonce))?
-            .absorb(&mut n_subscribers)?;
+            .absorb(NBytes::new(&mut nonce))?;
 
-        for _ in 0..n_subscribers.inner() {
-            #[cfg(not(feature = "did"))]
-            let drop_len = KEY_SIZE + x25519::PUBLIC_KEY_LENGTH;
-            #[cfg(feature = "did")]
-            let drop_len = DID_ENCRYPTED_DATA_SIZE;
 
-            let mut fork = self.fork();
-            // Loop through provided number of identifiers and subsequent keys
-            let mut subscriber_id = Permissioned::<Identifier>::default();
-            fork.mask(&mut subscriber_id)?;
+        #[cfg(not(feature = "did"))]
+        {
+            let mut n_subscribers = Size::default();
+            self.absorb(&mut n_subscribers)?;
+            unwrap_subscribers(
+                &mut self,
+                keyload,
+                n_subscribers,
+                &mut key,
+                SubscriberKind::Ed25519
+            ).await?;
+        }
 
-            if key.is_none() && keyload.user_id.is_some() {
-                // Can unwrap if user_id is some
-                let user_id = keyload.user_id.as_mut().unwrap();
-                if subscriber_id.identifier() == user_id.identifier() {
-                    fork.decrypt(user_id.identity_kind(), key.get_or_insert([0u8; KEY_SIZE]))
-                        .await?;
-                } else {
-                    fork.drop(drop_len)?;
-                }
-            } else {
-                fork.drop(drop_len)?;
-            }
-            keyload.subscribers.push(subscriber_id);
+        #[cfg(feature = "did")]
+        {
+            let mut n_did_subscribers = Size::default();
+            let mut n_ed_subscribers = Size::default();
+
+            self.absorb(&mut n_did_subscribers)?;
+            unwrap_subscribers(
+                &mut self,
+                keyload,
+                n_did_subscribers,
+                &mut key,
+                SubscriberKind::Ed25519
+            ).await?;
+
+            self.absorb(&mut n_ed_subscribers)?;
+            unwrap_subscribers(
+                &mut self,
+                keyload,
+                n_ed_subscribers,
+                &mut key,
+                SubscriberKind::Ed25519
+            ).await?;
         }
         self.absorb(&mut n_psks)?;
 
@@ -326,4 +422,46 @@ where
         self.commit()?;
         Ok(self)
     }
+}
+
+
+enum SubscriberKind {
+    Ed25519,
+    #[cfg(feature = "did")]
+    DID,
+}
+async fn unwrap_subscribers<'a, IS: io::IStream>(
+    ctx: &mut unwrap::Context<IS>,
+    keyload: &mut Unwrap<'a>,
+    num_subscribers: Size,
+    key: &mut Option<[u8;KEY_SIZE]>,
+    kind: SubscriberKind
+) -> Result<()> {
+    let drop_len = match kind {
+        SubscriberKind::Ed25519 => KEY_SIZE + x25519::PUBLIC_KEY_LENGTH,
+        #[cfg(feature = "did")]
+        SubscriberKind::DID => DID_ENCRYPTED_DATA_SIZE
+    };
+
+    for _ in 0..num_subscribers.inner() {
+        let mut fork = ctx.fork();
+        // Loop through provided number of identifiers and subsequent keys
+        let mut subscriber_id = Permissioned::<Identifier>::default();
+        fork.mask(&mut subscriber_id)?;
+
+        if key.is_none() && keyload.user_id.is_some() {
+            // Can unwrap if user_id is some
+            let user_id = keyload.user_id.as_mut().unwrap();
+            if subscriber_id.identifier() == user_id.identifier() {
+                fork.decrypt(user_id.identity_kind(), key.get_or_insert([0u8; KEY_SIZE]))
+                    .await?;
+            } else {
+                fork.drop(drop_len)?;
+            }
+        } else {
+            fork.drop(drop_len)?;
+        }
+        keyload.subscribers.push(subscriber_id);
+    }
+    Ok(())
 }

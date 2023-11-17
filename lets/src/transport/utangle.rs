@@ -25,7 +25,6 @@ use crypto::{
 // Streams
 
 // Local
-#[cfg(feature = "did")]
 use crate::id::{Ed25519Pub, Ed25519Sig};
 use crate::{
     address::Address,
@@ -117,7 +116,7 @@ where
     /// # Arguments
     /// * `address`: The address of the message.
     /// * `msg`: Message - The message to send.
-    #[cfg(feature = "did")]
+    //#[cfg(feature = "did")]
     async fn send_message(
         &mut self,
         address: Address,
@@ -155,7 +154,7 @@ where
         Ok(response)
     }
 
-    #[cfg(not(feature = "did"))]
+    /*#[cfg(not(feature = "did"))]
     async fn send_message(&mut self, address: Address, msg: Message) -> Result<SendResponse>
     where
         Message: 'async_trait + Send,
@@ -184,7 +183,7 @@ where
             .json()
             .await?;
         Ok(response)
-    }
+    }*/
 
     /// Retrieves a message indexed at the provided [`Address`] from the tangle. Errors if no
     /// messages are found.

@@ -9,7 +9,6 @@ use async_trait::async_trait;
 // Streams
 
 // Local
-#[cfg(feature = "did")]
 use crate::id::{Ed25519Pub, Ed25519Sig};
 use crate::{
     address::Address,
@@ -59,7 +58,7 @@ where
     ///
     /// Returns:
     /// The message that was sent.
-    #[cfg(not(feature = "did"))]
+    /*#[cfg(not(feature = "did"))]
     async fn send_message(&mut self, addr: Address, msg: Msg) -> Result<Msg>
     where
         Self::Msg: 'async_trait,
@@ -68,7 +67,7 @@ where
         Ok(msg)
     }
 
-    #[cfg(feature = "did")]
+    #[cfg(feature = "did")]*/
     async fn send_message(
         &mut self,
         addr: Address,

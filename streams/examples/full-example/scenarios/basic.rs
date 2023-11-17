@@ -320,7 +320,7 @@ pub(crate) async fn example<SR, T: GenericTransport<SR>>(transport: T, author_se
                 })
                 .collect::<Vec<_>>()
                 .iter()
-                .map(Permissioned::as_ref),
+                .map(|perm| perm.clone()),
             [psk.to_pskid()],
         )
         .await?;
@@ -528,9 +528,9 @@ pub(crate) async fn example<SR, T: GenericTransport<SR>>(transport: T, author_se
     println!("> Author adds Subscriber A again and grants them Admin privileges");
     print_user("Author", &author);
     assert!(author.add_subscriber(subscriber_a_id.clone()));
-    let subscriber_a_admin_permission = Permissioned::Admin(&subscriber_a_id);
+    let subscriber_a_admin_permission = Permissioned::Admin(subscriber_a_id.clone());
     author
-        .send_keyload(BRANCH1, vec![subscriber_a_admin_permission], vec![])
+        .send_keyload(BRANCH1, vec![subscriber_a_admin_permission.clone()], vec![])
         .await?;
     print_user("Author", &author);
 

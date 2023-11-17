@@ -5,7 +5,6 @@ use alloc::boxed::Box;
 use async_trait::async_trait;
 
 // IOTA
-#[cfg(not(feature = "did"))]
 use crate::id::Ed25519Pub;
 use crypto::{keys::x25519, signatures::ed25519};
 
@@ -13,7 +12,6 @@ use crypto::{keys::x25519, signatures::ed25519};
 use iota_stronghold::Location;
 
 // Streams
-#[cfg(not(feature = "did"))]
 use spongos::ddml::commands::{Ed25519, X25519};
 use spongos::{
     ddml::{
@@ -46,7 +44,6 @@ use crate::{
 #[derive(Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Identifier {
     /// Ed25519 Keypair based identifier
-    #[cfg(not(feature = "did"))]
     Ed25519(Ed25519Pub),
     /// IOTA DID based identifier
     #[cfg(feature = "did")]
@@ -56,7 +53,6 @@ pub enum Identifier {
 impl core::fmt::Debug for Identifier {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            #[cfg(not(feature = "did"))]
             Self::Ed25519(arg0) => f.debug_tuple("Ed25519").field(&hex::encode(&arg0)).finish(),
             #[cfg(feature = "did")]
             Self::DID(url_info) => f
@@ -73,7 +69,6 @@ impl Identifier {
     /// View into the underlying Byte array of the identifier
     pub(crate) fn as_bytes(&self) -> &[u8] {
         match self {
-            #[cfg(not(feature = "did"))]
             Identifier::Ed25519(public_key) => public_key.as_slice(),
             #[cfg(feature = "did")]
             Identifier::DID(url_info) => url_info.as_ref(),
@@ -82,7 +77,6 @@ impl Identifier {
 
     pub async fn sig_pk(&self) -> Result<ed25519::PublicKey> {
         match self {
-            #[cfg(not(feature = "did"))]
             Identifier::Ed25519(pk) => Ok(pk.clone()),
             #[cfg(feature = "did")]
             Identifier::DID(url_info) => {
@@ -110,7 +104,6 @@ impl Identifier {
     /// for key exchange.
     pub async fn ke_pk(&self) -> Result<x25519::PublicKey> {
         match self {
-            #[cfg(not(feature = "did"))]
             Identifier::Ed25519(pk) => Ok(pk
                 .try_into()
                 .expect("failed to convert ed25519 public-key to x25519 public-key")),
@@ -137,7 +130,6 @@ impl Identifier {
         }
     }
 
-    #[cfg(not(feature = "did"))]
     /// Returns whether the [`Identifier`] type is Ed25519 or not
     pub fn is_ed25519(&self) -> bool {
         matches!(self, Self::Ed25519(_))
@@ -156,7 +148,6 @@ impl Default for Identifier {
     }
 }
 
-#[cfg(not(feature = "did"))]
 impl From<ed25519::PublicKey> for Identifier {
     fn from(pk: ed25519::PublicKey) -> Self {
         Identifier::Ed25519(pk)
@@ -190,7 +181,6 @@ impl core::fmt::Display for Identifier {
 impl Mask<&Identifier> for sizeof::Context {
     fn mask(&mut self, identifier: &Identifier) -> SpongosResult<&mut Self> {
         match identifier {
-            #[cfg(not(feature = "did"))]
             Identifier::Ed25519(pk) => {
                 let oneof = Uint8::new(0);
                 self.mask(oneof)?.mask(pk)?;
@@ -213,7 +203,6 @@ where
 {
     fn mask(&mut self, identifier: &Identifier) -> SpongosResult<&mut Self> {
         match &identifier {
-            #[cfg(not(feature = "did"))]
             Identifier::Ed25519(pk) => {
                 let oneof = Uint8::new(0);
                 self.mask(oneof)?.mask(pk)?;
@@ -238,7 +227,6 @@ where
         let mut oneof = Uint8::new(0);
         self.mask(&mut oneof)?;
         match oneof.inner() {
-            #[cfg(not(feature = "did"))]
             0 => {
                 let mut pk = ed25519::PublicKey::try_from_bytes([0; 32]).unwrap();
                 self.mask(&mut pk)?;
@@ -275,7 +263,6 @@ where
         self.absorb(&mut oneof)?;
         match oneof.inner() {
             0 => match verifier {
-                #[cfg(not(feature = "did"))]
                 Identifier::Ed25519(public_key) => {
                     let mut hash = External::new(NBytes::new([0; 64]));
                     self.commit()?
@@ -321,6 +308,13 @@ where
                         .map_err(|e| SpongosError::Context("ContentVerify", e.to_string()))?;
                     Ok(self)
                 }
+                Identifier::Ed25519(public_key) => {
+                    let mut hash = External::new(NBytes::new([0; 64]));
+                    self.commit()?
+                        .squeeze(hash.as_mut())?
+                        .ed25519(public_key, hash.as_ref())?;
+                    Ok(self)
+                }
             },
             o => Err(SpongosError::InvalidOption("identity", o)),
         }
@@ -334,7 +328,6 @@ impl ContentEncryptSizeOf<Identifier> for sizeof::Context {
         // TODO: Replace with separate logic for EdPubKey and DID instances (pending Identity xkey
         // introdution)
         match recipient {
-            #[cfg(not(feature = "did"))]
             Identifier::Ed25519(pk) => {
                 let xkey =
                     x25519::PublicKey::try_from(pk).expect("failed to convert ed25519 public-key to x25519 public-key");
@@ -396,9 +389,9 @@ where
                                 .try_decode()
                                 .map_err(|e| SpongosError::Context("ContentEncrypt try_decode", e.to_string()))?,
                         )
-                        .map_err(|e| {
-                            SpongosError::Context("ContentEncrypt x25519::PublicKey try_from_slice", e.to_string())
-                        })?;
+                            .map_err(|e| {
+                                SpongosError::Context("ContentEncrypt x25519::PublicKey try_from_slice", e.to_string())
+                            })?;
 
                         // Fetch stronghold instance
                         let stronghold = sender_info
@@ -418,7 +411,26 @@ where
                             .mask(NBytes::new(&encrypted_data.tag))?
                             .mask(NBytes::new(&encrypted_data.ciphertext))
                     }
+                    IdentityKind::Ed25519(_) => {
+                        let receiver_method = get_exchange_method(url_info).await?;
+
+                        let xkey = x25519::PublicKey::try_from_slice(
+                            &receiver_method
+                                .data()
+                                .try_decode()
+                                .map_err(|e| SpongosError::Context("ContentEncrypt try_decode", e.to_string()))?,
+                        )
+                            .map_err(|e| {
+                                SpongosError::Context("ContentEncrypt x25519::PublicKey try_from_slice", e.to_string())
+                            })?;
+
+                        self.x25519(&xkey, NBytes::new(key))
+                    }
                 }
+            }
+            Identifier::Ed25519(pk) => {
+                let xkey = pk.to_bytes().try_into().expect("failed to convert ed25519 public-key to x25519 public-key");
+                self.x25519(&xkey, NBytes::new(key))
             }
         }
     }

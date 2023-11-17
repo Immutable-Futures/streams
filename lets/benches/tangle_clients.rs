@@ -1,5 +1,5 @@
 // Rust
-use std::convert::TryFrom;
+use core::convert::TryFrom;
 
 // 3rd-party
 use anyhow::Result;

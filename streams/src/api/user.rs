@@ -175,9 +175,10 @@ impl<T> User<T> {
     #[cfg(feature = "did")]
     pub fn with_stronghold(&mut self, stronghold: StrongholdSecretManager) {
         if let Some(identity) = self.identity_mut() {
-            let IdentityKind::DID(DID::PrivateKey(info)) = identity.identity_kind();
-            let did_info = info.url_info_mut();
-            *did_info = did_info.clone().with_stronghold(stronghold);
+            if let IdentityKind::DID(DID::PrivateKey(info)) = identity.identity_kind() {
+                let did_info = info.url_info_mut();
+                *did_info = did_info.clone().with_stronghold(stronghold);
+            }
         }
     }
 
@@ -1527,7 +1528,7 @@ where
     }
 
     async fn send_message(&mut self, address: Address, msg: TransportMessage) -> Result<TSR> {
-        #[cfg(not(feature = "did"))]
+        /*#[cfg(not(feature = "did"))]
         {
             self.transport
                 .send_message(address, msg)
@@ -1535,7 +1536,7 @@ where
                 .map_err(|e| Error::Transport(address, "send announce message", e))
         }
         #[cfg(feature = "did")]
-        {
+        {*/
             let identity = self.identity_mut().ok_or(Error::NoIdentity("send messages"))?;
             // TODO: store pubkey in user instance for easy retrieval
             let sig = identity
@@ -1551,7 +1552,7 @@ where
                 .send_message(address, msg, pub_key, sig)
                 .await
                 .map_err(|e| Error::Transport(address, "send announce message", e))
-        }
+       // }
     }
 }
 
