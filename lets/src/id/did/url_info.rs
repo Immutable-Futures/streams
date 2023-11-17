@@ -1,7 +1,10 @@
 // Rust
 use alloc::{string::String, vec::Vec};
-use core::fmt::{Debug, Formatter};
-use std::{cmp::Ordering, hash::Hasher};
+use core::{
+    cmp::Ordering,
+    fmt::{Debug, Formatter},
+    hash::Hasher
+};
 
 // IOTA
 use identity_iota::{core::BaseEncoding, iota::IotaDID, verification::MethodData};
@@ -60,7 +63,7 @@ impl Clone for DIDUrlInfo {
     }
 }
 
-impl std::hash::Hash for DIDUrlInfo {
+impl core::hash::Hash for DIDUrlInfo {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.did.hash(state);
         self.client_url.hash(state);
