@@ -52,7 +52,7 @@ impl Ed25519 {
     }
 
     pub(crate) fn to_x25519(&self) -> x25519::SecretKey {
-        x25519::SecretKey::from_bytes(self.inner().to_bytes())
+        x25519::SecretKey::from(self.inner())
     }
 }
 

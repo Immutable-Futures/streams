@@ -140,7 +140,7 @@ where
             let n_subscribers = Size::new(subscribers.len());
             self.absorb(n_subscribers)?;
             for subscriber in subscribers {
-                self.fork().encrypt_sizeof(subscriber.identifier(), &keyload.key).await?;
+                self.fork().mask(&subscriber)?.encrypt_sizeof(subscriber.identifier(), &keyload.key).await?;
             }
         }
 
@@ -227,7 +227,7 @@ where
             let n_subscribers = Size::new(subscribers.len());
             self.absorb(n_subscribers)?;
             for subscriber in subscribers {
-                self.fork().encrypt(subscriber.identifier(), &keyload.key).await?;
+                self.fork().mask(&subscriber)?.encrypt(subscriber.identifier(), &keyload.key).await?;
             }
         }
 
