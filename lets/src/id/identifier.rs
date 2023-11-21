@@ -1,5 +1,9 @@
 // Rust
 use alloc::boxed::Box;
+#[cfg(feature = "did")]
+use core::ops::Deref;
+#[cfg(feature = "did")]
+use anyhow::anyhow;
 
 // 3rd-party
 use async_trait::async_trait;
@@ -7,6 +11,11 @@ use async_trait::async_trait;
 // IOTA
 use crate::id::Ed25519Pub;
 use crypto::{keys::x25519, signatures::ed25519};
+#[cfg(feature = "did")]
+use crypto::{
+    ciphers::{aes_gcm::Aes256Gcm, traits::Aead},
+    hashes::{Digest, sha::Sha256}
+};
 
 #[cfg(feature = "did")]
 use iota_stronghold::Location;
@@ -321,7 +330,6 @@ where
     }
 }
 
-// TODO: Find a better way to represent this logic without the need for an additional trait
 #[async_trait]
 impl ContentEncryptSizeOf<Identifier> for sizeof::Context {
     async fn encrypt_sizeof(&mut self, recipient: &Identifier, _key: &[u8]) -> SpongosResult<&mut Self> {
@@ -332,9 +340,11 @@ impl ContentEncryptSizeOf<Identifier> for sizeof::Context {
                 let xkey =
                     x25519::PublicKey::try_from(pk).expect("failed to convert ed25519 public-key to x25519 public-key");
                 self.x25519(&xkey, NBytes::new(_key))
-            }
+            },
             #[cfg(feature = "did")]
-            Identifier::DID(_) => self.mask(NBytes::new([0; DID_ENCRYPTED_DATA_SIZE])),
+            Identifier::DID(_) => {
+                self.mask(NBytes::new([0; DID_ENCRYPTED_DATA_SIZE]))
+            }
         }
     }
 }
@@ -411,7 +421,7 @@ where
                             .mask(NBytes::new(&encrypted_data.tag))?
                             .mask(NBytes::new(&encrypted_data.ciphertext))
                     }
-                    IdentityKind::Ed25519(_) => {
+                    IdentityKind::Ed25519(kp) => {
                         let receiver_method = get_exchange_method(url_info).await?;
 
                         let xkey = x25519::PublicKey::try_from_slice(
@@ -424,14 +434,83 @@ where
                                 SpongosError::Context("ContentEncrypt x25519::PublicKey try_from_slice", e.to_string())
                             })?;
 
-                        self.x25519(&xkey, NBytes::new(key))
+
+                        let sender_key = kp.to_x25519();
+                        let shared_key = sender_key.diffie_hellman(&xkey);
+
+                        let concat = concat_kdf::<Sha256>(shared_key.as_bytes())
+                            .map_err(|e| SpongosError::Context("ContentEncrypt concat_kdf", e.to_string()))?;
+
+                        let mut tag = crypto::ciphers::traits::Tag::<Aes256Gcm>::default();
+                        let mut cipher = vec![0; key.len()];
+                        let associated_data = b"stronghold-adapter-encrypt";
+                        let mut nonce = [0_u8; 12];
+                        crypto::utils::rand::fill(&mut nonce)
+                            .map_err(|e| SpongosError::Context("ContentEncrypt crypto fill nonce", e.to_string()))?;
+                        Aes256Gcm::try_encrypt(&concat, &nonce, associated_data, key, &mut cipher, &mut tag)
+                            .map_err(|e| SpongosError::Context("ContentEncrypt aes_gcm encrypt", e.to_string()))?;
+
+                        self.mask(NBytes::new(&sender_key.public_key()))?
+                            .mask(NBytes::new(&nonce))?
+                            .mask(NBytes::new(&tag))?
+                            .mask(NBytes::new(&cipher))
                     }
                 }
             }
             Identifier::Ed25519(pk) => {
-                let xkey = pk.to_bytes().try_into().expect("failed to convert ed25519 public-key to x25519 public-key");
+                let xkey = x25519::PublicKey::try_from(pk.deref())
+                    .expect("failed to convert ed25519 public-key to x25519 public-key");
                 self.x25519(&xkey, NBytes::new(key))
             }
         }
     }
+}
+
+
+#[cfg(feature = "did")]
+// Taken from Stronghold to allow Ed25519 users to x25519 key exchange with stronghold instances
+fn concat_kdf<D: Digest + hkdf::hmac::digest::FixedOutputReset>(shared_secret: &[u8;32]) -> Result<Vec<u8>> {
+    let mut digest: D = D::new();
+    let alg = "ECDH-ES";
+    let len = 32;
+    let apu = vec![];
+    let apv = vec![];
+    let pub_info = vec![];
+    let prv_info = vec![];
+
+    let mut output = Vec::new();
+    let target: usize = (len + (<D as Digest>::output_size() - 1)) / <D as Digest>::output_size();
+    let rounds: u32 = u32::try_from(target)
+        .map_err(|e| Error::External(anyhow!("Error with conversion {}", e)))?;
+
+    for count in 0..rounds {
+        // Iteration Count
+        Digest::update(&mut digest, (count + 1).to_be_bytes());
+
+        // Derived Secret
+        Digest::update(&mut digest, shared_secret);
+
+        // AlgorithmId
+        Digest::update(&mut digest, (alg.len() as u32).to_be_bytes());
+        Digest::update(&mut digest, alg.as_bytes());
+
+        // PartyUInfo
+        Digest::update(&mut digest, (apu.len() as u32).to_be_bytes());
+        Digest::update(&mut digest, &apu);
+
+        // PartyVInfo
+        Digest::update(&mut digest, (apv.len() as u32).to_be_bytes());
+        Digest::update(&mut digest, &apv);
+
+        // SuppPubInfo
+        Digest::update(&mut digest, &pub_info);
+
+        // SuppPrivInfo
+        Digest::update(&mut digest, &prv_info);
+
+        output.extend_from_slice(&digest.finalize_reset());
+    }
+
+    output.truncate(len);
+    Ok(output)
 }

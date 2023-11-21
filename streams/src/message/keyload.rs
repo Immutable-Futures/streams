@@ -128,7 +128,6 @@ where
     Psks::IntoIter: ExactSizeIterator + Send,
 {
     async fn sizeof(&mut self, keyload: &Wrap<'a, 'b, Subscribers, Psks>) -> Result<&mut sizeof::Context> {
-        let subscribers = keyload.subscribers.clone().into_iter();
         let psks = keyload.psks.clone().into_iter();
         let n_psks = Size::new(psks.len());
         self.absorb(NBytes::new(keyload.nonce))?;
@@ -137,6 +136,7 @@ where
         // Loop through provided identifiers, masking the shared key for each one
         #[cfg(not(feature = "did"))]
         {
+            let subscribers = keyload.subscribers.clone().into_iter();
             let n_subscribers = Size::new(subscribers.len());
             self.absorb(n_subscribers)?;
             for subscriber in subscribers {
@@ -164,7 +164,7 @@ where
 
             let n_did_subscribers = Size::new(did_subscribers.len());
             self.absorb(n_did_subscribers)?;
-            for mut subscriber in did_subscribers {
+            for subscriber in did_subscribers {
                 self.fork()
                     .mask(&subscriber)?
                     .encrypt_sizeof(
@@ -176,7 +176,7 @@ where
 
             let n_ed_subscribers = Size::new(ed_subscribers.len());
             self.absorb(n_ed_subscribers)?;
-            for mut subscriber in ed_subscribers {
+            for subscriber in ed_subscribers {
                 self.fork()
                     .mask(&subscriber)?
                     .encrypt_sizeof(
@@ -376,7 +376,7 @@ where
                 keyload,
                 n_did_subscribers,
                 &mut key,
-                SubscriberKind::Ed25519
+                SubscriberKind::DID
             ).await?;
 
             self.absorb(&mut n_ed_subscribers)?;

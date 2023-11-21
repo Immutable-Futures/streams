@@ -25,7 +25,7 @@ utangle-client = ["reqwest", "serde", "rayon", "iota-crypto/curl-p"]
 # Enable bucket transport Client
 bucket = ["spin"]
 # Enable Iota Identity for use with Streams
-did = ["identity_iota", "iota-client", "serde", "iota_stronghold", "iota-crypto/x25519-dalek"]
+did = ["identity_iota", "iota-client", "serde", "iota_stronghold", "iota-crypto/x25519-dalek", "hkdf"]
 # Enable client for mysql,
 mysql-client = ["sqlx", "std"]
 
@@ -36,6 +36,7 @@ spongos = {path = "../spongos", default-features = false, features = ["osrng"]}
 
 # IOTA dependencies
 iota-crypto = {version = "0.15.3", default-features = false, features = ["x25519", "ed25519", "sha", "blake2b"]}
+hkdf = {version = "0.12.3", optional = true}
 
 # 3rd-party dependencies
 anyhow = {version = "1.0", default-features = false}

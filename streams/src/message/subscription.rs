@@ -86,9 +86,14 @@ impl<'a> Wrap<'a> {
 #[async_trait]
 impl<'a> ContentSizeof<Wrap<'a>> for sizeof::Context {
     async fn sizeof(&mut self, subscription: &Wrap<'a>) -> Result<&mut Self> {
+        #[cfg(not(feature = "did"))]
         self.encrypt_sizeof(subscription.author_identifier, &subscription.unsubscribe_key)
-            .await?
-            .mask(subscription.subscriber_id.identifier())?
+            .await?;
+        #[cfg(feature = "did")]
+        self.encrypt_sizeof(subscription.author_identifier, &subscription.unsubscribe_key)
+            .await?;
+
+        self.mask(subscription.subscriber_id.identifier())?
             .sign_sizeof(subscription.subscriber_id)
             .await?;
         Ok(self)

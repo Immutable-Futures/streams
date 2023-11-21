@@ -90,7 +90,7 @@ impl From<String> for IdentityError {
 /// Error type of the LETS crate.
 #[allow(clippy::large_enum_variant)]
 pub enum Error {
-    #[error("Crypto error hile attempting to {0}: {1}")]
+    #[error("Crypto error while attempting to {0}: {1}")]
     Crypto(&'static str, crypto::Error),
 
     #[cfg(feature = "did")]

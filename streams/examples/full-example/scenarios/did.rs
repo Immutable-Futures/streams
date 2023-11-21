@@ -22,6 +22,7 @@ use iota_client::{
 // Streams
 use streams::{
     id::{
+        Ed25519,
         did::{DIDInfo, DIDUrlInfo, Location, StrongholdSecretManager, DID, STREAMS_VAULT},
         Permissioned, Psk,
     },
@@ -33,7 +34,7 @@ use crate::GenericTransport;
 
 const PUBLIC_PAYLOAD: &[u8] = b"PUBLICPAYLOAD";
 const MASKED_PAYLOAD: &[u8] = b"MASKEDPAYLOAD";
-const CLIENT_URL: &str = "http://68.183.204.5:14101";
+const CLIENT_URL: &str = "http://68.183.204.5:14102";
 
 const STRONGHOLD_PASSWORD: &str = "temp_stronghold_password";
 const STRONGHOLD_URL: &str = "temp_stronghold";
@@ -51,11 +52,11 @@ pub(crate) async fn example<SR, T: GenericTransport<SR>>(transport: T) -> Result
 
     println!("> Making DID with method for the Author");
     let author_did_info = make_did_info(&did_client, "auth_key", "auth_xkey", "auth_signing_key", "auth").await?;
-    println!("> Making a couple DIDs with methods for the Subscribers");
+    println!("> Making another DID with methods for one of the Subscribers");
     let subscriber_a_did_info =
         make_did_info(&did_client, "sub_a_key", "sub_a_xkey", "subA_signing_key", "subA").await?;
-    let subscriber_b_did_info =
-        make_did_info(&did_client, "sub_b_key", "sub_b_xkey", "subB_signing_key", "subB").await?;
+    //let subscriber_b_did_info =
+    //    make_did_info(&did_client, "sub_b_key", "sub_b_xkey", "subB_signing_key", "subB").await?;
 
     // Generate a simple PSK for storage by users
     let psk = Psk::from_seed("A pre shared key");
@@ -70,7 +71,7 @@ pub(crate) async fn example<SR, T: GenericTransport<SR>>(transport: T) -> Result
         .with_transport(transport.clone())
         .build();
     let mut subscriber_b = User::builder()
-        .with_identity(DID::PrivateKey(subscriber_b_did_info))
+        .with_identity(Ed25519::from_seed("SUBSCRIBER B UNIQUE SEED"))
         .with_transport(transport.clone())
         .build();
     let mut subscriber_c = User::builder()
