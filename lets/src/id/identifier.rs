@@ -1,5 +1,8 @@
 // Rust
-use alloc::boxed::Box;
+use alloc::{
+    boxed::Box,
+    vec::Vec,
+};
 #[cfg(feature = "did")]
 use core::ops::Deref;
 #[cfg(feature = "did")]
