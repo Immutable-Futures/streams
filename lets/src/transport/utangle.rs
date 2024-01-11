@@ -116,7 +116,6 @@ where
     /// # Arguments
     /// * `address`: The address of the message.
     /// * `msg`: Message - The message to send.
-    //#[cfg(feature = "did")]
     async fn send_message(
         &mut self,
         address: Address,
@@ -153,37 +152,6 @@ where
             .await?;
         Ok(response)
     }
-
-    /*#[cfg(not(feature = "did"))]
-    async fn send_message(&mut self, address: Address, msg: Message) -> Result<SendResponse>
-    where
-        Message: 'async_trait + Send,
-    {
-        let network_info = self.get_network_info().await?;
-        let tips = self.get_tips().await?;
-
-        let mut block = Block::new(
-            tips,
-            address.to_msg_index().to_vec(),
-            msg.as_ref().to_vec(),
-            vec![],
-            vec![],
-        );
-        let message_bytes = serde_json::to_vec(&block)?;
-        block.set_nonce(nonce(&message_bytes, network_info.protocol.min_pow_score as f64)?);
-
-        let path = "api/core/v2/blocks";
-        let response: SendResponse = self
-            .client
-            .post(format!("{}/{}", self.node_url, path))
-            .header("Content-Type", "application/json")
-            .body(message_bytes)
-            .send()
-            .await?
-            .json()
-            .await?;
-        Ok(response)
-    }*/
 
     /// Retrieves a message indexed at the provided [`Address`] from the tangle. Errors if no
     /// messages are found.
@@ -351,7 +319,10 @@ mod tests {
                 Utc::now().timestamp_millis() as usize,
             ),
         );
-        let _: serde_json::Value = client.send_message(address, msg.clone()).await?;
+        let key = crypto::signatures::ed25519::SecretKey::generate().unwrap();
+        let pk = key.public_key();
+        let sig = key.sign(msg.as_ref());
+        let _: serde_json::Value = client.send_message(address, msg.clone(), pk, sig).await?;
 
         let response = client.recv_message(address).await?;
         assert_eq!(msg, response);
