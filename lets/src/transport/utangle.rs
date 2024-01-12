@@ -290,7 +290,11 @@ pub struct SentMessageResponse {
 impl TryFrom<Block> for TransportMessage {
     type Error = crate::error::Error;
     fn try_from(message: Block) -> Result<Self> {
-        Ok(Self::new(prefix_hex::decode(message.payload.data.clone())?))
+        Ok(
+            Self::new(prefix_hex::decode(message.payload.data.clone())?)
+                .with_pk(prefix_hex::decode(message.payload.pub_key)?)
+                .with_sig(prefix_hex::decode(message.payload.signature)?)
+        )
     }
 }
 
@@ -308,8 +312,7 @@ mod tests {
 
     #[tokio::test]
     async fn send_and_recv_message() -> Result<()> {
-        let mut client = Client::new("https://chrysalis-nodes.iota.org");
-        let msg = TransportMessage::new(vec![12; 1024]);
+        let mut client = Client::new("http://nodes.02.demia-testing-domain.com:14102");
         let address = Address::new(
             AppAddr::default(),
             MsgId::gen(
@@ -319,9 +322,13 @@ mod tests {
                 Utc::now().timestamp_millis() as usize,
             ),
         );
+        let body = vec![12; 50];
         let key = crypto::signatures::ed25519::SecretKey::generate().unwrap();
         let pk = key.public_key();
-        let sig = key.sign(msg.as_ref());
+        let sig = key.sign(&body);
+        let msg = TransportMessage::new(body)
+            .with_pk(pk.to_bytes().to_vec())
+            .with_sig(sig.to_bytes().to_vec());
         let _: serde_json::Value = client.send_message(address, msg.clone(), pk, sig).await?;
 
         let response = client.recv_message(address).await?;

@@ -26,6 +26,11 @@ pub struct Message {
     pub header: HDF,
     /// The message payload
     pub content: MessageContent,
+    // TODO: Use structures for these returns, propagate all the way down
+    /// The message public key
+    pub public_key: Vec<u8>,
+    /// The message Signature
+    pub signature: Vec<u8>
 }
 
 impl Message {
@@ -37,13 +42,15 @@ impl Message {
     ///
     /// Returns:
     /// A [`Message`] struct
-    pub(crate) fn from_lets_message<Unwrap>(address: Address, lets_message: LetsMessage<Unwrap>) -> Self
+    pub(crate) fn from_lets_message<Unwrap>(address: Address, public_key: Vec<u8>, signature: Vec<u8>, lets_message: LetsMessage<Unwrap>) -> Self
     where
         Unwrap: Into<MessageContent>,
     {
         let parts = lets_message.into_parts();
         Message {
             address,
+            public_key,
+            signature,
             header: parts.0,
             content: parts.1.into_content().into(),
         }
@@ -58,10 +65,12 @@ impl Message {
     ///
     /// Returns:
     /// An `Orphan` [`Message`]
-    pub(crate) fn orphan(address: Address, preparsed: PreparsedMessage) -> Self {
+    pub(crate) fn orphan(address: Address, public_key: Vec<u8>, signature: Vec<u8>, preparsed: PreparsedMessage) -> Self {
         let parts = preparsed.into_parts();
         Self {
             address,
+            public_key,
+            signature,
             header: parts.0,
             content: MessageContent::Orphan(Orphan {
                 cursor: parts.3,

@@ -64,6 +64,17 @@ impl<SM, DM> Client<SM, DM> {
             return Err(Error::InvalidSize("signature", 32, sql_message.public_key.len() as u64))
         }
 
+        let mut bytes = [0u8; 32];
+        bytes.clone_from_slice(&sql_message.public_key);
+        let pk = Ed25519Pub::try_from_bytes(bytes)
+            .map_err(|e| Error::Crypto("making public key", e))?;
+        let mut bytes = [0u8; 64];
+        bytes.clone_from_slice(&sql_message.signature);
+        let sig = Ed25519Sig::from_bytes(bytes);
+        if !pk.verify(&sig, &sql_message.raw_content) {
+            return Err(Error::Signature("verifying", "retrieve message"))
+        }
+
         Ok(sql_message)
     }
 }
@@ -108,14 +119,6 @@ where
         StreamsMessage: 'async_trait,
     {
         let msg = self.retrieve_message(address).await?;
-        #[cfg(feature = "did")]
-        {
-            println!("Verifying message");
-            let mut bytes = [0u8; 32];
-            bytes.clone_from_slice(&msg.public_key);
-            let pk = Ed25519Pub::try_from_bytes(bytes)?;
-            pk.verify(&Ed25519Sig::from_bytes(msg.signature), &msg.raw_content)?;
-        }
         Ok(vec![msg.into()])
     }
 }
@@ -180,6 +183,8 @@ impl From<TransportMessage> for SqlMessage {
 impl From<SqlMessage> for TransportMessage {
     fn from(msg: SqlMessage) -> TransportMessage {
         Self::new(msg.raw_content)
+            .with_pk(msg.public_key)
+            .with_sig(msg.signature)
     }
 }
 
@@ -209,10 +214,13 @@ mod tests {
                 Utc::now().timestamp_millis() as usize,
             ),
         );
-        let msg = TransportMessage::new(vec![12; 50]);
+        let body = vec![12; 50];
         let key = crypto::signatures::ed25519::SecretKey::generate().unwrap();
         let pk = key.public_key();
-        let sig = key.sign(msg.as_ref());
+        let sig = key.sign(&body);
+        let msg = TransportMessage::new(body)
+            .with_pk(pk.to_bytes().to_vec())
+            .with_sig(sig.to_bytes().to_vec());
         client.send_message(address, msg.clone().into(), pk, sig).await?;
         let response = client.recv_message(address).await?;
         assert_eq!(msg, response);
