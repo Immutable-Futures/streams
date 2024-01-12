@@ -1562,9 +1562,6 @@ where
     async fn send_message(&mut self, address: Address, msg: TransportMessage) -> Result<TSR> {
             let identity = self.identity_mut().ok_or(Error::NoIdentity("send messages"))?;
             // TODO: store pubkey in user instance for easy retrieval
-            #[cfg(feature = "bucket")]
-            //let sig = Ed25519Sig
-            //#[cfg(not(feature = "bucket"))]
             let sig = identity
                 .sign_data(msg.as_ref())
                 .await
