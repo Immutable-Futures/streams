@@ -52,12 +52,14 @@ impl<SM, DM> Client<SM, DM> {
     async fn retrieve_message(&mut self, address: Address) -> Result<SqlMessage> {
         let mut msg_id_bytes = address.base().as_bytes().to_vec();
         msg_id_bytes.extend_from_slice(address.relative().as_bytes());
-        Ok(
-            sqlx::query_as!(SqlMessage, r#"SELECT * FROM messages WHERE msg_id = ?"#, msg_id_bytes)
-                .fetch_one(&self.0)
-                .await
-                .map_err(|e| Error::MySqlClient("fetching message", e))?,
+        Ok(sqlx::query_as!(
+            SqlMessage,
+            r#"SELECT * FROM messages WHERE msg_id = ?"#,
+            msg_id_bytes
         )
+        .fetch_one(&self.0)
+        .await
+        .map_err(|e| Error::MySqlClient("fetching message", e))?)
     }
 }
 
@@ -71,7 +73,11 @@ where
     type SendResponse = DbMessage;
 
     #[cfg(not(feature = "did"))]
-    async fn send_message(&mut self, address: Address, msg: StreamsMessage) -> Result<Self::SendResponse>
+    async fn send_message(
+        &mut self,
+        address: Address,
+        msg: StreamsMessage,
+    ) -> Result<Self::SendResponse>
     where
         StreamsMessage: 'async_trait,
     {
