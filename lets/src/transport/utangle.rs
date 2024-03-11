@@ -138,7 +138,10 @@ where
             signature.to_bytes().to_vec(),
         );
         let message_bytes = serde_json::to_vec(&block)?;
-        block.set_nonce(nonce(&message_bytes, network_info.protocol.min_pow_score as f64)?);
+        block.set_nonce(nonce(
+            &message_bytes,
+            network_info.protocol.min_pow_score as f64,
+        )?);
 
         let path = "api/core/v2/blocks";
 
@@ -191,7 +194,10 @@ where
     /// # Arguments
     /// * `address`: The address of the message to retrieve.
     async fn recv_messages(&mut self, address: Address) -> Result<Vec<Message>> {
-        let path = format!("api/core/v2/tagged/{}", prefix_hex::encode(address.to_msg_index()));
+        let path = format!(
+            "api/core/v2/tagged/{}",
+            prefix_hex::encode(address.to_msg_index())
+        );
         let index_data: BlockResponse = self
             .client
             .get(format!("{}/{}", self.node_url, path))
@@ -207,13 +213,21 @@ where
             .ok_or(Error::AddressError("No message found", address))?;
         Ok(vec![msg.try_into()?])
     }
+
+    async fn latest_timestamp(&self) -> Result<u128> {
+        let network_info = self.get_network_info().await?;
+        Ok(network_info.status.latest_milestone.timestamp as u128)
+    }
 }
 
 fn nonce(data: &[u8], target_score: f64) -> Result<u64> {
-    let target_zeros = (((data.len() + NONCE_SIZE) as f64 * target_score).ln() / LN_3).ceil() as usize;
+    let target_zeros =
+        (((data.len() + NONCE_SIZE) as f64 * target_score).ln() / LN_3).ceil() as usize;
     let hash = Blake2b256::digest(data);
     let mut pow_digest = TritBuf::<T1B1Buf>::new();
-    b1t6::encode::<T1B1Buf>(&hash).iter().for_each(|t| pow_digest.push(t));
+    b1t6::encode::<T1B1Buf>(&hash)
+        .iter()
+        .for_each(|t| pow_digest.push(t));
     (0..u32::MAX)
         .into_par_iter()
         .step_by(curl_p::BATCH_SIZE)
@@ -223,7 +237,8 @@ fn nonce(data: &[u8], target_score: f64) -> Result<u64> {
                 let mut buffer = TritBuf::<T1B1Buf>::zeros(ternary::HASH_LENGTH);
                 buffer[..pow_digest.len()].copy_from(&pow_digest);
                 let nonce_trits = b1t6::encode::<T1B1Buf>(&(n as u64 + i as u64).to_le_bytes());
-                buffer[pow_digest.len()..pow_digest.len() + nonce_trits.len()].copy_from(&nonce_trits);
+                buffer[pow_digest.len()..pow_digest.len() + nonce_trits.len()]
+                    .copy_from(&nonce_trits);
                 hasher.add(buffer);
             }
             for (i, hash) in hasher.hash().enumerate() {
@@ -243,6 +258,9 @@ struct NetworkInfo {
     /// Protocol Info, contains the pow score
     #[serde(rename = "protocol")]
     protocol: Protocol,
+    /// Network status, containing milestones
+    #[serde(rename = "status")]
+    status: Status,
 }
 
 #[derive(Clone, Deserialize)]
@@ -256,6 +274,21 @@ struct Protocol {
 struct Tips {
     /// Tips to be used as parents in block
     tips: Vec<String>,
+}
+
+#[derive(Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct Status {
+    /// Latest seen milestone
+    latest_milestone: Milestone,
+    confirmed_milestone: Milestone,
+}
+
+#[derive(Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct Milestone {
+    index: u32,
+    timestamp: u64
 }
 
 #[derive(Serialize, Deserialize)]
@@ -272,7 +305,13 @@ pub struct Block {
 }
 
 impl Block {
-    fn new(tips: Tips, tag: Vec<u8>, data: Vec<u8>, public_key: Vec<u8>, signature: Vec<u8>) -> Block {
+    fn new(
+        tips: Tips,
+        tag: Vec<u8>,
+        data: Vec<u8>,
+        public_key: Vec<u8>,
+        signature: Vec<u8>,
+    ) -> Block {
         Block {
             protocol_version: 2_u8,
             parents: tips.tips,

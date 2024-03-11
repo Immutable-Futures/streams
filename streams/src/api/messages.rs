@@ -123,7 +123,7 @@ use crate::api::{
 /// suggested that, when suitable, use the methods in [`futures::TryStreamExt`] to make the
 /// error-handling much more ergonomic (with the use of `?`) and shortcircuit the
 /// [`futures::Stream`] on the first error.
-pub struct Messages<'a, T: Send>(PinBoxFut<'a, (MessagesState<'a, T>, Option<Result<Message>>)>);
+pub struct Messages<'a, T: Send + Sync>(PinBoxFut<'a, (MessagesState<'a, T>, Option<Result<Message>>)>);
 
 type PinBoxFut<'a, T> = Pin<Box<dyn Future<Output = T> + 'a + Send>>;
 
@@ -135,7 +135,7 @@ struct MessagesState<'a, T> {
     successful_round: bool,
 }
 
-impl<'a, T: Send> MessagesState<'a, T> {
+impl<'a, T: Send + Sync> MessagesState<'a, T> {
     fn new(user: &'a mut User<T>) -> Self {
         Self {
             user,
@@ -152,7 +152,7 @@ impl<'a, T: Send> MessagesState<'a, T> {
     #[async_recursion]
     async fn next(&mut self) -> Option<Result<Message>>
     where
-        T: for<'b> Transport<'b, Msg = TransportMessage> + Send,
+        T: for<'b> Transport<'b, Msg = TransportMessage>,
     {
         if let Some((relative_address, binary_msg)) = self.stage.pop_front() {
             // Drain stage if not empty...
@@ -243,7 +243,7 @@ impl<'a, T: Send> MessagesState<'a, T> {
 
 impl<'a, T> Messages<'a, T>
 where
-    T: for<'b> Transport<'b, Msg = TransportMessage> + Send,
+    T: for<'b> Transport<'b, Msg = TransportMessage> + Send + Sync,
 {
     pub(crate) fn new(user: &'a mut User<T>) -> Self {
         let mut state = MessagesState::new(user);
@@ -327,7 +327,7 @@ where
 
 impl<'a, T> From<&'a mut User<T>> for Messages<'a, T>
 where
-    T: for<'b> Transport<'b, Msg = TransportMessage> + Send,
+    T: for<'b> Transport<'b, Msg = TransportMessage> + Send + Sync,
 {
     fn from(user: &'a mut User<T>) -> Self {
         Self::new(user)
@@ -336,7 +336,7 @@ where
 
 impl<'a, T> Stream for Messages<'a, T>
 where
-    T: for<'b> Transport<'b, Msg = TransportMessage> + Send,
+    T: for<'b> Transport<'b, Msg = TransportMessage> + Send + Sync,
 {
     type Item = Result<Message>;
 
@@ -372,9 +372,11 @@ mod tests {
     type Transport = bucket::Client;
 
     #[tokio::test]
-    async fn messages_awake_pending_messages_link_to_them_even_if_their_content_is_unreadable() -> Result<()> {
+    async fn messages_awake_pending_messages_link_to_them_even_if_their_content_is_unreadable(
+    ) -> Result<()> {
         let p = b"payload";
-        let (mut author, mut subscriber1, announcement_link, transport) = author_subscriber_fixture().await?;
+        let (mut author, mut subscriber1, announcement_link, transport) =
+            author_subscriber_fixture().await?;
 
         let branch_1 = "BRANCH_1";
         let branch_announcement = author.new_branch("BASE_BRANCH", branch_1).await?;
@@ -385,7 +387,8 @@ mod tests {
         // through the next messages
         let _packet_2 = subscriber1.send_signed_packet(branch_1, &p, &p).await?;
 
-        let mut subscriber2 = subscriber_fixture("subscriber2", &mut author, announcement_link, transport).await?;
+        let mut subscriber2 =
+            subscriber_fixture("subscriber2", &mut author, announcement_link, transport).await?;
 
         author.sync().await?;
 
@@ -432,15 +435,21 @@ mod tests {
 
     /// Prepare a simple scenario with an author, a subscriber, a channel announcement and a bucket
     /// transport
-    async fn author_subscriber_fixture() -> Result<(User<Transport>, User<Transport>, Address, Transport)> {
+    async fn author_subscriber_fixture(
+    ) -> Result<(User<Transport>, User<Transport>, Address, Transport)> {
         let transport = bucket::Client::new();
         let mut author = User::builder()
             .with_identity(Ed25519::from_seed("author"))
             .with_transport(transport.clone())
             .build();
         let announcement = author.create_stream("BASE_BRANCH").await?;
-        let subscriber =
-            subscriber_fixture("subscriber", &mut author, announcement.address(), transport.clone()).await?;
+        let subscriber = subscriber_fixture(
+            "subscriber",
+            &mut author,
+            announcement.address(),
+            transport.clone(),
+        )
+        .await?;
         Ok((author, subscriber, announcement.address(), transport))
     }
 

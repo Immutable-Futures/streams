@@ -78,7 +78,11 @@ where
     where
         Self::Msg: 'async_trait,
     {
-        self.bucket.lock().entry(addr).or_default().push(msg.clone());
+        self.bucket
+            .lock()
+            .entry(addr)
+            .or_default()
+            .push(msg.clone());
         Ok(msg)
     }
 
@@ -96,5 +100,12 @@ where
             .get(&address)
             .cloned()
             .ok_or(Error::AddressError("No message found", address))
+    }
+
+    async fn latest_timestamp(&self) -> Result<u128> {
+        let start = std::time::SystemTime::now();
+        Ok(start
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("Time went backwards").as_millis())
     }
 }
